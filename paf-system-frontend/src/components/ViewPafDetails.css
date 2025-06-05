@@ -1,0 +1,182 @@
+/* src/components/ViewPafDetails.css */
+.view-paf-details-container {
+    max-width: 900px;
+    margin: 30px auto;
+    padding: 25px 35px;
+    background-color: #fff;
+    border-radius: 8px;
+    box-shadow: 0 3px 10px rgba(0,0,0,0.1);
+    font-size: 0.95em;
+}
+
+.paf-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 30px;
+    padding-bottom: 15px;
+    border-bottom: 2px solid #3498db; /* Accent color */
+}
+
+.paf-header h1 {
+    margin: 0;
+    color: #2c3e50;
+    font-size: 1.7em;
+}
+
+.back-to-dashboard-link {
+    color: #3498db;
+    text-decoration: none;
+    font-size: 0.9em;
+    font-weight: 500;
+}
+.back-to-dashboard-link:hover {
+    text-decoration: underline;
+}
+
+.paf-section {
+    margin-bottom: 30px;
+    padding-bottom: 20px;
+    border-bottom: 1px dashed #e0e0e0;
+}
+.paf-section:last-of-type {
+    border-bottom: none;
+    margin-bottom: 0;
+}
+
+.paf-section h2 {
+    font-size: 1.3em;
+    color: #34495e;
+    margin-top: 0;
+    margin-bottom: 18px;
+    padding-bottom: 8px;
+    border-bottom: 1px solid #ecf0f1;
+}
+
+.info-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); /* Responsive columns */
+    gap: 10px 20px; /* Row gap, Column gap */
+}
+
+.info-grid div {
+    padding: 5px 0;
+}
+.info-grid div strong {
+    color: #555;
+    margin-right: 8px;
+    min-width: 150px; /* For alignment if needed, but grid handles it well */
+    display: inline-block;
+}
+
+.party-subsection {
+    margin-top: 15px;
+    padding-top: 10px;
+    /* border-top: 1px solid #f0f0f0; */
+}
+.party-subsection h4 {
+    font-size: 1em;
+    color: #4a6a8a;
+    margin-bottom: 8px;
+}
+.party-subsection ul {
+    list-style-type: disc;
+    margin-left: 20px;
+    padding-left: 5px;
+}
+.party-subsection li {
+    margin-bottom: 5px;
+    color: #444;
+}
+
+
+.status-badge {
+    font-weight: bold;
+    padding: 4px 10px;
+    border-radius: 12px; /* Pill shape */
+    font-size: 0.85em;
+    display: inline-block;
+    color: white; /* Default text color for badges */
+}
+/* Re-using status colors from AdminDashboard.css, ensure these are consistent or defined here */
+.status-pending { background-color: #ffc107; color: #333; } /* Yellow */
+.status-rejected { background-color: #dc3545; } /* Red */
+.status-active { background-color: #28a745; } /* Green */
+.status-renewal { background-color: #fd7e14; } /* Orange */
+.status-other { background-color: #6c757d; } /* Grey */
+
+
+.paf-notes-info pre {
+    background-color: #f8f9fa;
+    padding: 15px;
+    border-radius: 4px;
+    white-space: pre-wrap; /* Allow wrapping */
+    word-wrap: break-word;
+    font-family: monospace;
+    font-size: 0.9em;
+    border: 1px solid #e0e0e0;
+}
+
+.paf-status-history table {
+    width: 100%;
+    border-collapse: collapse;
+    margin-top: 10px;
+    font-size: 0.9em;
+}
+.paf-status-history th, .paf-status-history td {
+    border: 1px solid #e0e0e0;
+    padding: 8px 10px;
+    text-align: left;
+}
+.paf-status-history th {
+    background-color: #f1f3f5;
+    font-weight: 600;
+    color: #495057;
+}
+.paf-status-history td:nth-child(1) { /* Date column */
+    width: 180px;
+    white-space: nowrap;
+}
+.paf-status-history td:nth-child(2) { /* Status column */
+    font-weight: 500;
+}
+
+
+.loading-container.view-paf-loading,
+.error-container.view-paf-error {
+    text-align: center;
+    padding: 40px;
+    font-size: 1.1em;
+    color: #555;
+}
+.error-container.view-paf-error p {
+    color: #dc3545;
+    font-weight: bold;
+}
+
+.paf-actions-footer {
+    margin-top: 30px;
+    padding-top: 20px;
+    border-top: 1px solid #e0e0e0;
+    text-align: right;
+}
+.paf-actions-footer .action-button {
+    background-color: #007bff;
+    color: white;
+    border: none;
+    padding: 10px 18px;
+    margin-left: 10px;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 0.95em;
+    transition: background-color 0.2s;
+}
+.paf-actions-footer .action-button:hover {
+    background-color: #0056b3;
+}
+.paf-actions-footer .approve-lo-btn {
+    background-color: #28a745;
+}
+.paf-actions-footer .approve-lo-btn:hover {
+    background-color: #218838;
+}

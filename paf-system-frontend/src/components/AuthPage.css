@@ -1,0 +1,107 @@
+/* src/components/AuthPage.css */
+.auth-page-container {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    min-height: calc(100vh - 120px); /* Adjust based on navbar/footer height */
+    padding: 20px;
+    background-color: #e9ecef; /* Light grey background */
+}
+
+.auth-form-wrapper {
+    background-color: #fff;
+    padding: 30px 40px;
+    border-radius: 8px;
+    box-shadow: 0 5px 15px rgba(0, 0, 0, 0.1);
+    width: 100%;
+    max-width: 400px;
+    text-align: center;
+}
+
+.auth-form-wrapper h2 {
+    margin-top: 0;
+    margin-bottom: 25px;
+    color: #343a40;
+    font-size: 1.8em;
+}
+
+.auth-page-container .form-group { /* Scoping to avoid conflict */
+    margin-bottom: 20px;
+    text-align: left;
+}
+
+.auth-page-container .form-group label {
+    display: block;
+    margin-bottom: 8px;
+    font-weight: 600;
+    color: #495057;
+}
+
+.auth-page-container .form-group input[type="email"],
+.auth-page-container .form-group input[type="password"] {
+    width: 100%;
+    padding: 12px;
+    border: 1px solid #ced4da;
+    border-radius: 4px;
+    box-sizing: border-box;
+    font-size: 1em;
+}
+.auth-page-container .form-group input:focus {
+    border-color: #80bdff;
+    outline: 0;
+    box-shadow: 0 0 0 0.2rem rgba(0, 123, 255, 0.25);
+}
+
+
+.login-btn {
+    background-color: #007bff;
+    color: white;
+    padding: 12px 20px;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 1.1em;
+    font-weight: 600;
+    width: 100%;
+    transition: background-color 0.2s ease;
+    margin-bottom: 20px;
+}
+
+.login-btn:hover {
+    background-color: #0056b3;
+}
+.login-btn:disabled {
+    background-color: #6c757d;
+    cursor: not-allowed;
+}
+
+.auth-links {
+    margin-top: 20px;
+    font-size: 0.9em;
+    color: #6c757d;
+}
+
+.auth-links .link-button {
+    background: none;
+    border: none;
+    color: #007bff;
+    text-decoration: underline;
+    cursor: pointer;
+    padding: 0;
+    margin-left: 5px;
+    font-size: 1em; /* Match surrounding text */
+}
+.auth-links .link-button:hover {
+    color: #0056b3;
+}
+
+
+.message.auth-error { /* Specific styling for auth errors */
+    background-color: #f8d7da;
+    color: #721c24;
+    border: 1px solid #f5c6cb;
+    padding: 10px;
+    margin-bottom: 20px;
+    border-radius: 4px;
+    text-align: center;
+}
