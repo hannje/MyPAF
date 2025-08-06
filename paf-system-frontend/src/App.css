@@ -70,7 +70,7 @@
 }
 
 .button-container button:hover {
-  background-color: #0056b3;
+  background-color: #a31943;
 }
 
 .message {
@@ -99,7 +99,7 @@
 
 /* Styles for Navbar Links using NavLink */
 .app-navbar .nav-links .nav-link { /* General style for NavLink if you used this class */
-  color: #ecf0f1;
+  color: #202e31;
   margin-left: 20px;
   text-decoration: none;
   font-size: 1em;
@@ -123,7 +123,7 @@
 .app-navbar .nav-links .logout-button {
   background: none;
   border: none;
-  color: #ecf0f1; /* Light grey for links */
+  color: #af2955; /* Light grey for links */
   margin-left: 20px;
   text-decoration: none;
   font-size: 1em;
@@ -135,4 +135,147 @@
 .app-navbar .nav-links .logout-button:hover {
   color: #e74c3c; /* Reddish on hover for logout */
   text-decoration: underline;
+}
+
+
+/* --- Footer Styles --- */
+
+/* This helps ensure the footer stays at the bottom, even on pages with little content */
+/* It requires your main .App container to have min-height: 100vh and display: flex */
+.app-footer {
+  background-color: #343a40; /* A dark background color */
+  color: #adb5bd; /* A light grey text color */
+  padding: 1.5rem 2rem;
+  margin-top: auto; /* This pushes the footer to the bottom in a flex container */
+  font-size: 0.9rem;
+  text-align: center;
+}
+
+.footer-content {
+  max-width: 960px;
+  margin: 0 auto;
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.footer-links {
+  display: flex;
+  justify-content: center;
+  gap: 1.5rem;
+  margin-bottom: 0.5rem;
+}
+
+.footer-links a {
+  color: #f8f9fa; /* White link color */
+  text-decoration: none;
+  transition: color 0.2s;
+}
+
+.footer-links a:hover {
+  color: #007bff; /* A highlight color on hover */
+  text-decoration: underline;
+}
+
+.footer-contact p {
+  margin: 0.25rem 0;
+}
+
+.footer-copyright {
+  margin-top: 1rem;
+  font-size: 0.8rem;
+  color: #6c757d; /* A more subtle grey for copyright */
+}
+
+/* --- App Container Flexbox for Sticky Footer --- */
+/* Add or modify your existing .App style */
+.App {
+  display: flex;
+  flex-direction: column;
+  min-height: 100vh;
+}
+
+/* Make sure your main content area can grow */
+.app-content {
+  flex: 1;
+}
+.nav-link.logout-button {
+  background-color: #dc3545; /* A distinct red color */
+  color: #ffffff !important; /* White text, !important to override base .nav-link color if needed */
+  border: none;
+  border-radius: 4px;
+  padding: 8px 12px;
+  cursor: pointer;
+  margin-left: 1rem; /* Adds some space between it and other links */
+  font-weight: bold;
+  transition: background-color 0.2s ease-in-out;
+}
+
+/* Hover state for the Logout Button */
+.nav-link.logout-button:hover {
+  background-color: #8b75da; /* A darker red on hover */
+  text-decoration: none; /* Remove underline on hover if .nav-link:hover adds one */
+}
+
+
+.nav-dropdown {
+  position: relative;
+  display: inline-block;
+}
+
+/* The visible text that triggers the dropdown */
+.nav-dropdown .dropdown-trigger {
+  color: #ffffff !important;  
+  cursor: pointer;
+  padding-right: 1.5em;
+  background-repeat: no-repeat;
+  background-position: right 0.5em center;
+  background-size: 0.8em;
+  /* The arrow color will be inherited from the .nav-link text color. 
+     If your .nav-link color is light, you need a light-colored arrow SVG.
+     This one is white (#ffffff). Change the stroke color if needed. */
+ 
+
+}
+
+/* The dropdown menu container */
+.nav-dropdown .dropdown-content {
+  display: none;
+  position: absolute;
+  background-color: #f1f1f1; /* Using a standard light grey for visibility */
+  min-width: 220px;
+  box-shadow: 0px 8px 16px 0px rgba(0,0,0,0.2);
+  z-index: 100;
+  border-radius: 4px;
+  padding: 8px 0; /* A little tighter padding */
+  margin-top: 5px;
+}
+
+/* VVVVVV THE CRITICAL FIX IS HERE VVVVVV */
+/* Style for the links INSIDE the dropdown menu */
+.nav-dropdown .dropdown-content a {
+  /* Use a highly specific selector and !important as a last resort if needed */
+  color: #212529 !important; /* Dark grey text color, !important to force override */
+  padding: 10px 16px;
+  text-decoration: none;
+  display: block;
+  text-align: left;
+  /* Make sure it has no background by default */
+  background-color: transparent;
+  /* Reset any other properties from .nav-link if necessary */
+  border: none;
+  margin: 0;
+}
+/* AAAAAA END OF CRITICAL FIX AAAAAA */
+
+
+/* Hover state for the dropdown links */
+.nav-dropdown .dropdown-content a:hover {
+  background-color: #e9ecef; /* A slightly darker grey for hover */
+  color: #007bff !important; /* Your chosen hover color */
+}
+
+/* Show the dropdown menu when hovering over the container */
+.nav-dropdown:hover .dropdown-content {
+  display: block;
 }

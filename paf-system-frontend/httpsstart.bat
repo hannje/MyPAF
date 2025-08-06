@@ -1,0 +1,1 @@
+npm start -- --https --cert C:\MyPAFReact\paf-system-backend-node\certs\cert.pem --key C:\MyPAFReact\paf-system-backend-node\certs\key.pem --port 3002

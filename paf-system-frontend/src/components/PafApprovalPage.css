@@ -32,3 +32,72 @@
 .loading-container, .error-container { text-align: center; padding: 50px; font-size: 1.2em; }
 .form-message { margin-top: 20px; }
 /* Add any other specific styles */
+.paf-approval-container {
+  padding: 20px;
+  max-width: 800px;
+  margin: 0 auto;
+}
+
+.signing-section {
+  margin-top: 2rem;
+  border-top: 2px solid #eee;
+  padding-top: 1.5rem;
+}
+
+.signature-pad-container {
+  border: 1px solid #aaa;
+  border-radius: 4px;
+  padding: 5px;
+  margin-bottom: 1rem;
+}
+
+.signature-canvas {
+  width: 100%;
+  height: 200px;
+  background-color: #f8f9fa;
+  cursor: crosshair;
+}
+
+.signature-buttons {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  padding: 10px 5px 5px;
+  border-top: 1px solid #eee;
+}
+
+.signature-buttons button {
+  padding: 8px 15px;
+  border: 1px solid #ccc;
+  background-color: #fff;
+  cursor: pointer;
+  border-radius: 4px;
+}
+
+.signature-buttons button:last-child {
+  background-color: #007bff;
+  color: white;
+  border-color: #007bff;
+}
+
+.signature-preview {
+  margin-top: 1rem;
+  padding: 1rem;
+  background-color: #e9f5ff;
+  border: 1px solid #b3d7ff;
+  border-radius: 4px;
+}
+
+.submit-final-button {
+  padding: 12px 20px;
+  font-size: 1.1rem;
+  background-color: #28a745;
+  color: white;
+  border: none;
+  border-radius: 5px;
+  cursor: pointer;
+}
+.submit-final-button:disabled {
+  background-color: #aaa;
+  cursor: not-allowed;
+}

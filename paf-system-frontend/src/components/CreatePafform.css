@@ -109,4 +109,38 @@ body {
       border: 1px solid #f5c6cb;
   }
   
+  /* Wrapper for centering the button */
+.form-action-center {
+  text-align: center;
+  margin-top: 20px; /* Adds some space above the button */
+  padding-top: 20px;
+  border-top: 1px solid #eee; /* Optional: adds a separator line */
+}
+
+/* New class to make the button bigger */
+.submit-button.large-button {
+  padding: 12px 24px; /* Increased padding for a larger size */
+  font-size: 1.1rem;   /* Larger font size */
+  font-weight: bold;
+  min-width: 200px;  /* Optional: gives the button a minimum width */
+}
+
+/* You should already have a base style for .submit-button, for example: */
+.submit-button {
+  background-color: #007bff;
+  color: white;
+  border: none;
+  border-radius: 5px;
+  cursor: pointer;
+  transition: background-color 0.2s;
+}
+
+.submit-button:disabled {
+  background-color: #aaa;
+  cursor: not-allowed;
+}
+
+.submit-button:hover:not(:disabled) {
+  background-color: #0056b3;
+}
   /* Ensure your component-specific CSS files are also created and linked */

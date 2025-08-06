@@ -1,109 +1,221 @@
-// src/components/EditUserForm.js
-import React, { useEffect, useState } from 'react';
-import { useParams, Link } from 'react-router-dom';
-// import axios from 'axios'; // Will need this later for fetching/updating
+import React, { useState, useEffect, useContext } from 'react';
+import { useParams, useNavigate, Link } from 'react-router-dom';
+import axios from 'axios';
+import AuthContext from '../context/AuthContext';
 
-// const API_BASE_URL = 'http://localhost:3001/api'; // Define if fetching user data
+const API_BASE_URL = 'https://10.72.14.19:3443';
 
-function EditUserForm({ currentUser }) { // Pass currentUser if needed for permissions
-    const { userId } = useParams(); // Get userId from URL parameter
-    const [loading, setLoading] = useState(true);
-    const [error, setError] = useState('');
-    const [userData, setUserData] = useState(null); // To store user data to edit
+function EditUserForm() {
+   const { userId: userIdFromParams } = useParams(); 
+  const navigate = useNavigate();
+//  const { adminUser } = useContext(AuthContext);
 
-    useEffect(() => {
-        console.log("EditUserForm mounted for userId:", userId);
-        // TODO: Fetch existing user data if userId is present
-        // Example:
-        // const fetchUser = async () => {
-        //     try {
-        //         setLoading(true);
-        //         setError('');
-        //         const response = await axios.get(`${API_BASE_URL}/users/${userId}`); // Need this backend endpoint
-        //         setUserData(response.data);
-        //     } catch (err) {
-        //         console.error("Error fetching user for edit:", err);
-        //         setError(err.response?.data?.error || "Failed to load user data.");
-        //     } finally {
-        //         setLoading(false);
-        //     }
-        // };
-        // if (userId) {
-        //     fetchUser();
-        // } else {
-        //     setError("No user ID provided for editing.");
-        //     setLoading(false);
-        // }
+  const { adminUser: loggedInUser } = useContext(AuthContext); // Renamed for clarity
 
-        // For now, just simulate loading
-        setTimeout(() => {
-            setLoading(false);
-            // If you had fetched data, you'd set it here.
-            // For placeholder, we can just acknowledge the ID.
-            if (!userId) {
-                setError("No user ID provided for editing.");
-            } else {
-                // Simulate finding some data
-                setUserData({
-                    user_id: userId,
-                    first_name: "FetchedFirstName",
-                    last_name: "FetchedLastName",
-                    email: `user${userId}@example.com`,
-                    role: "VIEWER"
-                });
-            }
-        }, 500);
+   const isSelfEdit = !userIdFromParams;
+  const userIdToEdit = isSelfEdit ? loggedInUser?.id : userIdFromParams;
 
 
-    }, [userId]);
+  const [formData, setFormData] = useState(null); // Will hold all user form fields
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState('');
+  const [message, setMessage] = useState('');
 
-    if (loading) {
-        return <div style={{ padding: '20px' }}>Loading user edit form...</div>;
+  // Fetch user data on component mount
+  useEffect(() => {
+    const fetchUser = async () => {
+
+          console.log("EditUserForm: userId from useParams() is:", userIdToEdit); 
+
+      if (!userIdToEdit) {
+        // This can happen briefly before loggedInUser is populated from context
+        // or if an admin navigates to the edit page without a userId
+        console.log("EditUserForm: Waiting for user ID...");
+        return;
+      }
+
+      setIsLoading(true);
+      setError('');
+      try {
+        const url = `${API_BASE_URL}/api/users/${userIdToEdit}`;
+        console.log(`EditUserForm: Fetching user data from ${url}`);
+        const response = await axios.get(url, { withCredentials: true });
+        console.log("EditUserForm: User data received:", response.data);
+        setFormData(response.data); // Set the entire user object to state
+      } catch (err) {
+        console.error("EditUserForm: Error fetching user:", err.response?.data || err.message);
+        setError(err.response?.data?.message || "Failed to load user data.");
+      } finally {
+        setIsLoading(false);
+      }
+    };
+    if (userIdToEdit) {
+      fetchUser();
+    }
+  }, [userIdToEdit]);
+
+  // Generic handler for form input changes
+  const handleChange = (e) => {
+    const { name, value } = e.target;
+    setFormData(prevData => ({
+      ...prevData,
+      [name]: value
+    }));
+  };
+
+const handleResetPassword = async () => {
+    const newPassword = prompt("Please enter the new password for this user.\n(Minimum 8 characters)");
+
+    if (!newPassword) {
+      alert("Password reset cancelled.");
+      return;
+    }
+    if (newPassword.length < 8) {
+      alert("Password must be at least 8 characters long.");
+      return;
+    }
+    if (!window.confirm("Are you sure you want to reset this user's password? This action cannot be undone.")) {
+        return;
     }
 
-    if (error) {
-        return <div style={{ padding: '20px', color: 'red' }}>Error: {error} <Link to="/admin-dashboard">Back to Dashboard</Link></div>;
-    }
+ // 4. SET LOADING STATE
+  setIsLoading(true);
+  setError('');
+  setMessage('');
 
-    if (!userData && !loading) { // Should be caught by error above if !userId
-         return <div style={{ padding: '20px' }}>User not found or no ID provided. <Link to="/admin-dashboard">Back to Dashboard</Link></div>;
-    }
+  try {
+    // 5. API CALL
+    const url = `${API_BASE_URL}/api/users/${userIdToEdit}/reset-password`;
+    console.log(`EditUserForm: Submitting password reset to ${url}`); // <<< THIS LOG SHOULD APPEAR
 
-
-    return (
-        <div style={{ padding: '20px', maxWidth: '600px', margin: 'auto' }}>
-            <h2>Edit User (ID: {userId})</h2>
-            <p>This is where the form to edit user details for <strong>{userData?.first_name} {userData?.last_name} ({userData?.email})</strong> would go.</p>
-            {/* Placeholder for the actual form fields */}
-            <form>
-                <div style={{ marginBottom: '15px' }}>
-                    <label htmlFor="firstName" style={{ display: 'block' }}>First Name:</label>
-                    <input type="text" id="firstName" name="firstName" defaultValue={userData?.first_name || ''} style={{ width: '100%', padding: '8px' }} />
-                </div>
-                <div style={{ marginBottom: '15px' }}>
-                    <label htmlFor="lastName" style={{ display: 'block' }}>Last Name:</label>
-                    <input type="text" id="lastName" name="lastName" defaultValue={userData?.last_name || ''} style={{ width: '100%', padding: '8px' }} />
-                </div>
-                <div style={{ marginBottom: '15px' }}>
-                    <label htmlFor="email" style={{ display: 'block' }}>Email:</label>
-                    <input type="email" id="email" name="email" defaultValue={userData?.email || ''} style={{ width: '100%', padding: '8px' }} />
-                </div>
-                <div style={{ marginBottom: '15px' }}>
-                    <label htmlFor="role" style={{ display: 'block' }}>Role:</label>
-                    <select id="role" name="role" defaultValue={userData?.role || 'VIEWER'} style={{ width: '100%', padding: '8px' }}>
-                        <option value="VIEWER">Viewer</option>
-                        <option value="DATA_ENTRY">Data Entry</option>
-                        <option value="PAF_MANAGER">PAF Manager</option>
-                        <option value="ADMIN">Admin</option>
-                    </select>
-                </div>
-                <button type="button" onClick={() => alert('Update functionality to be implemented!')} style={{ padding: '10px 15px', marginRight: '10px' }}>Save Changes (Not Implemented)</button>
-                <Link to="/admin-dashboard">Cancel</Link>
-            </form>
-            <hr style={{margin: '20px 0'}} />
-            <Link to="/admin-dashboard">Back to Admin Dashboard</Link>
-        </div>
+    const response = await axios.post(url, 
+      { newPassword: newPassword },
+      { withCredentials: true }
     );
+    
+    // ... success handling ...
+
+  } catch (err) {
+    // ... error handling ...
+  } finally {
+    setIsLoading(false);
+  }
+
+
+}
+
+  const handleSubmit = async (event) => {
+    event.preventDefault();
+    setIsLoading(true);
+    setError('');
+    setMessage('');
+    try {
+      const url = `${API_BASE_URL}/api/users/${userIdToEdit}`;
+      console.log(`EditUserForm: Submitting updates to ${url}`);
+      
+      const response = await axios.put(url, formData, { withCredentials: true });
+      
+      setMessage(response.data.message || 'User updated successfully!');
+      // Optionally navigate back to the dashboard after a short delay
+      setTimeout(() => navigate('/admin-dashboard'), 2000);
+
+    } catch (err) {
+      console.error("EditUserForm: Error updating user:", err.response?.data || err.message);
+      setError(err.response?.data?.message || "Failed to update user.");
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  if (isLoading && !formData) return <div style={{padding: '20px'}}>Loading user for editing...</div>;
+  if (error) return <div style={{padding: '20px', color: 'red'}}>Error: {error} <Link to="/admin-dashboard">Back to Dashboard</Link></div>;
+  if (!formData) return <div style={{padding: '20px'}}>No user data to display.</div>;
+
+  return (
+    <div className="form-container">
+      <h2>Edit User: {formData.firstName} {formData.lastName} (ID: {formData.id})</h2>
+      <Link to="/admin-dashboard">Back to Dashboard</Link>
+      
+            <div style={{ margin: "20px 0", padding: "15px", border: "1px solid #c00", backgroundColor: "#f8d7da", borderRadius: "5px" }}>
+        <h4>Reset Password</h4>
+        <p>This will immediately change the user's password. The user will be notified via email.</p>
+        <button 
+            onClick={handleResetPassword} 
+            disabled={isLoading}
+            style={{ backgroundColor: "#dc3545", color: "white", border: "none", padding: "10px 15px", cursor: "pointer" }}
+        >
+            Reset User's Password
+        </button>
+      </div>
+      
+      <form onSubmit={handleSubmit} className="form" style={{marginTop: '20px'}}>
+        {/* We can use the same fieldsets as the creation forms */}
+        <fieldset>
+          <legend>User Account Details</legend>
+          <div className="form-group">
+            <label>First Name:</label>
+            <input type="text" name="firstName" value={formData.firstName || ''} onChange={handleChange} required />
+          </div>
+          <div className="form-group">
+            <label>Last Name:</label>
+            <input type="text" name="lastName" value={formData.lastName || ''} onChange={handleChange} required />
+          </div>
+          <div className="form-group">
+            <label>Email:</label>
+            <input type="email" name="email" value={formData.email || ''} onChange={handleChange} required />
+          </div>
+          <div className="form-group">
+            <label>Role:</label>
+            <select name="role" value={formData.role || ''} onChange={handleChange} required>
+              <option value="USER">User</option>
+              <option value="PAF_OPERATOR">PAF Operator</option>
+              <option value="ADMIN">Admin</option>
+            </select>
+          </div>
+          <div className="form-group">
+            <label>Type:</label>
+            <select name="brokerListAdmin" value={formData.brokerListAdmin || ''} onChange={handleChange} required>
+                <option value="">Select Type</option>
+                <option value="broker">Broker</option>
+                <option value="listadmin">List Administrator</option>
+            </select>
+          </div>
+          <p><small>Password cannot be changed from this form.</small></p>
+        </fieldset>
+
+        <fieldset>
+          <legend>User's Company & Address Information</legend>
+          <div className="form-group">
+            <label>Company Name:</label>
+            <input type="text" name="licenseeName" value={formData.licenseeName || ''} onChange={handleChange} />
+          </div>
+          <div className="form-group">
+            <label>NAICS Code (SIC):</label>
+            {/* For simplicity, this is a text input. For a dropdown, you'd need the NAICS fetch logic here too. */}
+            <input type="text" name="sic" value={formData.sic || ''} onChange={handleChange} />
+          </div>
+          <div className="form-group">
+            <label>Street Address:</label>
+            <input type="text" name="streetAddress" value={formData.streetAddress || ''} onChange={handleChange} />
+          </div>
+          {/* ... other address inputs (city, state, zipCode, phoneNumber) with name attribute matching formData keys ... */}
+        </fieldset>
+        
+        <fieldset>
+            <legend>System IDs (Read-Only)</legend>
+            <p><strong>USPS ID:</strong> {formData.uspsId || 'N/A'}</p>
+            <p><strong>USPS License ID (Scope):</strong> {formData.uspsLicenseId || 'N/A'}</p>
+            <p><strong>Created By Admin ID:</strong> {formData.createdByAdminId || 'N/A'}</p>
+        </fieldset>
+
+        <button type="submit" className="submit-button" disabled={isLoading} style={{ marginTop: '20px' }}>
+          {isLoading ? 'Saving Changes...' : 'Save Changes'}
+        </button>
+      </form>
+      {message && <p className="success-message" style={{ color: 'green', marginTop: '10px' }}>{message}</p>}
+      {error && !message && <p className="error-message" style={{ color: 'red', marginTop: '10px' }}>{error}</p>}
+    </div>
+  );
 }
 
 export default EditUserForm;

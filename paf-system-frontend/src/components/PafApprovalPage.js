@@ -2,9 +2,12 @@ import React, { useState, useEffect, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import axios from 'axios';
 import SignaturePad from 'signature_pad'; // Import the library
+
+import SignatureCanvas from 'react-signature-canvas'; // <<< 2. Import the component
+
 import './PafApprovalPage.css'; // Create this CSS file
 
-const API_BASE_URL = 'http://localhost:3001/api';
+const API_BASE_URL = 'https://10.72.14.19:3443/api';
 
 function PafApprovalPage() {
     const { pafDbId } = useParams(); // Get pafDbId from URL
@@ -26,19 +29,39 @@ function PafApprovalPage() {
     const [submitMessage, setSubmitMessage] = useState('');
     const [submitError, setSubmitError] = useState('');
 
+    const [agreedToTerms, setAgreedToTerms] = useState(false);
+ 
+    const [signatureDataUrl, setSignatureDataUrl] = useState(null); // <<< 4. State to hold the final signature image data
+    const [isLoading, setIsLoading] = useState(true);
+    const [error, setError] = useState('');
+
+
+    const [drawnSignatureData, setDrawnSignatureData] = useState(null);
+
+ // --- Ref for the signature canvas ---
+    const sigCanvasRef = useRef({}); // <<< 5. Create a ref
+
+
+
     useEffect(() => {
+
+          console.log(`approval page: pafDbId from useParams is: '${pafDbId}'`); // <<< LOG THIS
+
         const fetchPafForApproval = async () => {
             setLoadingPaf(true);
             setSubmitError('');
             try {
-                console.log("Fetched PAF for pafDbId:", pafDbId);
-
-                const response = await axios.get(`${API_BASE_URL}/pafs/${pafDbId}/for-approval`);
-                console.log("Fetched PAF for approval:", response.data);
+                const urlToFetch = `${API_BASE_URL}/pafs/${pafDbId}`; // <<< IS THIS THE CORRECT ENDPOINT?
+                console.log(`PafApprovalPage: Fetching PAF for approval from URL: ${urlToFetch}`); // <<< LOG 1
+                
+                const response = await axios.get(urlToFetch, {
+                withCredentials: true, // If session/auth is needed to view PAF before approval
+                });
+                console.log("PafApprovalPage: PAF data for approval received:", response.data); // <<< LOG 2
 
 
                 setPafDetails(response.data);
-                if (response.data.status !== 'PENDING_LIST_OWNER_SIGNATURE') {
+                if (response.data.status !== 'PENDING_LIST_OWNER_APPROVAL') {
                     setSubmitError(`This PAF is not currently awaiting your approval. Current status: ${response.data.status.replace(/_/g, ' ')}`);
                     // Optionally redirect or disable form
                 }
@@ -75,12 +98,13 @@ function PafApprovalPage() {
         }
     }, [signatureMethod]); // Re-initialize if signatureMethod changes to 'draw'
 
+
+   
     const clearSignaturePad = () => {
         if (signaturePadRef.current) {
             signaturePadRef.current.clear();
         }
     };
-
     const handleSignatureMethodChange = (method) => {
         setSignatureMethod(method);
         // Clear other methods' data
@@ -91,7 +115,68 @@ function PafApprovalPage() {
         if (document.getElementById('signature_upload')) document.getElementById('signature_upload').value = '';
     };
 
-    const handleFileChange = (event) => {
+
+const completeSignature = () => {
+        if (sigCanvasRef.current && !sigCanvasRef.current.isEmpty()) {
+            const dataUrl = sigCanvasRef.current.toDataURL('image/png');
+            setDrawnSignatureData(dataUrl); // Save the signature data to state
+            console.log("Signature captured.");
+        } else {
+            alert("Please provide a signature before completing.");
+        }
+    };
+
+  const clearSignature = () => {
+    sigCanvasRef.current.clear(); // Use the ref to call the clear method
+    setSignatureDataUrl(null); // Clear the saved signature data
+  };
+
+const handleSignAndSubmit = async () => {
+    // This function is now called by the final "Submit PAF" button
+    if (!agreedToTerms || !signerName || !signerTitle) {
+      setError("Please fill in your name, title, and agree to the terms.");
+      return;
+    }
+    if (!signatureDataUrl) { // <<< Check if signature has been "completed"
+      setError("Please complete your signature before submitting.");
+      return;
+    }
+
+
+    setIsLoading(true);
+    setError('');
+    try {
+      const url = `${API_BASE_URL}/api/pafs/${pafDbId}/listowner-signature`;
+      let payload = {
+        signerName: signerName,
+        signerTitle: signerTitle,
+        signatureMethod: 'DRAWN_SIGNATURE',
+        signatureData: signatureDataUrl, // <<< Send the base64 image data
+      };
+
+      if(typedSignature)
+      {
+        payload.signatureMethod = 'TYPED_SIGNATURE';
+        payload.signatureData = typedSignature; // Use typed signature if provided
+      }
+
+      console.table(payload); // Debug log
+
+      const response = await axios.post(url, payload, { withCredentials: true });
+      
+      alert("Thank you for signing the PAF. The Licensee Admin has been notified.");
+      setPafDetails(response.data.paf); // Update with new status
+
+    } catch (err) {
+      setError(err.response?.data?.message || "Failed to submit signature.");
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+
+
+ const handleFileChange = (event) => {
         if (event.target.files && event.target.files[0]) {
             setUploadedSignatureFile(event.target.files[0]);
         } else {
@@ -99,14 +184,34 @@ function PafApprovalPage() {
         }
     };
 
-    const canSubmit = () => {
-        if (!rtdAcknowledged || !signerName || !signerTitle) return false;
-        if (signatureMethod === 'type' && (!typedSignature || !typeConsent)) return false;
-        if (signatureMethod === 'draw' && (!signaturePadRef.current || signaturePadRef.current.isEmpty())) return false;
-        if (signatureMethod === 'upload' && !uploadedSignatureFile) return false;
-        if (pafDetails && pafDetails.status !== 'PENDING_LIST_OWNER_SIGNATURE') return false; // Don't allow submit if not in correct status
-        return true;
+
+const canSubmit = () => {
+        // Basic requirements that are always needed
+        if (!rtdAcknowledged || !signerName || !signerTitle) {
+            return false;
+        }
+
+        // Check for signature based on the selected method
+        if (signatureMethod === 'type') {
+            // For 'type', we need the typed signature and the consent checkbox
+        
+            console.log("Typed signature:", typedSignature, "Consent:", typeConsent); // Debug log
+            return typedSignature && typeConsent;
+        } 
+        else if (signatureMethod === 'draw') {
+            // For 'draw', we now check if the signature has been "completed"
+            // and saved into our drawnSignatureData state.
+            return !!drawnSignatureData; // The '!!' converts a value to a boolean (true if not null/undefined, false if it is)
+        } else if (signatureMethod === 'upload') {
+            // For 'upload', we check if a file has been selected
+            return !!uploadedSignatureFile;
+        }
+
+        // If no signature method is selected or something is wrong, disable submission
+        return false;
     };
+
+    
 
     const handleSubmitApproval = async (e) => {
         e.preventDefault();
@@ -119,36 +224,50 @@ function PafApprovalPage() {
         setSubmitError('');
 
         let signatureDataValue = '';
-        if (signatureMethod === 'type') {
-            signatureDataValue = typedSignature;
-        } else if (signatureMethod === 'draw' && signaturePadRef.current && !signaturePadRef.current.isEmpty()) {
-            signatureDataValue = signaturePadRef.current.toDataURL('image/png'); // Get as base64 PNG
-        } else if (signatureMethod === 'upload' && uploadedSignatureFile) {
-            // For upload, we'd typically send FormData.
-            // For simplicity here, if you store file path, backend needs to handle upload.
-            // If storing base64, frontend needs to read file as base64.
-            // Let's assume backend stores a reference or if it's small, base64
-            // This example will just send the file name for now if not handling actual upload here
-            // To send actual file, use FormData. For now, let's simulate sending file name.
-            // Or for base64:
-            // const reader = new FileReader();
-            // reader.readAsDataURL(uploadedSignatureFile);
-            // reader.onloadend = () => { signatureDataValue = reader.result; /* then submit */ };
-            // For now, we'll just pass a placeholder for upload.
-            // A real implementation would use FormData for file uploads.
-            // For this example, let's assume we're just noting the method and backend might expect file separately or path.
-            // If your backend expects base64 for uploads too, you need to implement file to base64 conversion here.
-            signatureDataValue = `Uploaded: ${uploadedSignatureFile.name}`; // Placeholder for now
+        let signatureDataForPayload = null;
+        let signatureMethodForPayload = signatureMethod;
+
+
+
+   if (signatureMethod === 'type') {
+            // ... your existing logic for typed signature ...
+            signatureDataForPayload = `typed:${typedSignature}`;
+        } else if (signatureMethod === 'draw') {
+            // Check if the canvas is empty before getting the data
+            if (sigCanvasRef.current && !sigCanvasRef.current.isEmpty()) {
+                // Get the signature as a base64 encoded PNG image data URL
+                signatureDataForPayload = sigCanvasRef.current.toDataURL('image/png');
+               signatureDataValue = sigCanvasRef.current.toDataURL('image/png');
+
+
+            } else {
+                alert("Please provide a signature by drawing it before submitting.");
+                return; // Stop submission if drawing is selected but canvas is empty
+            }
+        } else if (signatureMethod === 'upload') {
+            // ... your existing logic for file upload ...
+            // You would need to handle the file upload and get a URL or base64 string here
+            // For now, let's assume it sets a variable.
+            // signatureDataForPayload = uploadedFileBase64; 
         }
 
-
-        const payload = {
+        let payload = {
             signerName,
             signerTitle,
             signatureMethod,
             signatureData: signatureDataValue,
             rtdAcknowledged
         };
+        if(typedSignature)
+        {
+            payload.signatureMethod = 'TYPED_SIGNATURE';
+            payload.signatureData = typedSignature; // Use typed signature if provided
+        }
+
+      console.table(payload); // Debug log
+
+
+
 
         try {
             // If signatureMethod is 'upload' and you want to send the actual file,
@@ -186,6 +305,7 @@ function PafApprovalPage() {
     if (loadingPaf) return <div className="loading-container"><p>Loading PAF details...</p></div>;
     if (!pafDetails && !loadingPaf) return <div className="error-container"><p>Could not load PAF details. The link may be invalid or the PAF does not exist.</p></div>;
 
+    console.log("PafApprovalPage: PAF details loaded:", pafDetails); // Debug log for loaded PAF
 
     return (
         <div className="paf-approval-container">
@@ -196,11 +316,11 @@ function PafApprovalPage() {
                 <div className="section paf-info-display">
                     <h2>PAF & Party Details</h2>
                     <dl>
-                        <dt>List Owner:</dt><dd>{pafDetails.listOwnerName || 'N/A'}</dd>
-                        <dt>Processing Licensee:</dt><dd>{pafDetails.licenseeName || 'N/A'}</dd>
+                        <dt>List Owner:</dt><dd>{pafDetails.listOwnerId || 'N/A'}</dd>
+                        <dt>Processing Licensee:</dt><dd>{pafDetails.licenseeId || 'N/A'}</dd>
                         {pafDetails.brokerNames && <><dt>Broker(s)/Agent(s):</dt><dd>{pafDetails.brokerNames}</dd></>}
                         {pafDetails.listAdminName && <><dt>List Administrator:</dt><dd>{pafDetails.listAdminName}</dd></>}
-                        <dt>Date Initiated:</dt><dd>{pafDetails.date_issued ? new Date(pafDetails.date_issued).toLocaleDateString() : 'N/A'}</dd>
+                        <dt>Date Initiated:</dt><dd>{pafDetails.dateSigned? new Date(pafDetails.dateSigned).toLocaleDateString() : 'N/A'}</dd>
                         <dt>Current Status:</dt><dd style={{fontWeight: 'bold'}}>{pafDetails.status ? pafDetails.status.replace(/_/g, ' ') : 'N/A'}</dd>
                     </dl>
                 </div>
@@ -209,13 +329,21 @@ function PafApprovalPage() {
             {submitMessage && <div className="message success form-message">{submitMessage}</div>}
             {submitError && <div className="message error form-message">{submitError}</div>}
 
-            {pafDetails && pafDetails.status === 'PENDING_LIST_OWNER_SIGNATURE' && !submitMessage && (
+            {pafDetails && pafDetails.status === 'PENDING_LIST_OWNER_APPROVAL' && !submitMessage && (
                 <form id="paf-approval-form" onSubmit={handleSubmitApproval}>
                     <div className="section acknowledgment-box">
                         <label htmlFor="rtd_acknowledged">
                             <input type="checkbox" id="rtd_acknowledged" name="rtdAcknowledged" checked={rtdAcknowledged} onChange={(e) => setRtdAcknowledged(e.target.checked)} />
                             I acknowledge receipt and review of the NCOALink® Required Text Document (RTD).
-                            <a href="/path/to/your/rtd_for_service_provider.pdf" target="_blank" className="rtd-link">(View Document)</a>
+                        <a 
+                            href="/data/595_SVC-PROV-RTD.pdf"  // Path is relative to the public folder root
+                            target="_blank" 
+                            rel="noopener noreferrer" // Good security practice for target="_blank"
+                            className="rtd-link"
+                            >
+                            (View Service Provider RTD)
+                            </a>
+
                             <span className="required-indicator">*</span>
                         </label>
                     </div>
@@ -252,12 +380,36 @@ function PafApprovalPage() {
                                 By checking this box and typing my name, I agree that this constitutes my legally binding electronic signature.
                             </p>
                         </div>
+
                         <div id="draw-tab" className={`tab-content ${signatureMethod === 'draw' ? 'active' : ''}`}>
                             <label>Use your mouse or touchscreen to draw your signature:</label>
-                            <canvas ref={canvasRef} id="signature-pad-canvas" width="450" height="180" style={{border: '1px dashed #aaa', touchAction: 'none'}}></canvas>
+                            
+                            {/* --- REPLACE THIS: --- */}
+                            {/* <canvas ref={canvasRef} id="signature-pad-canvas" ...></canvas> */}
+
+                            {/* --- WITH THIS: --- */}
+                            <div style={{ border: '1px dashed #aaa', width: '450px', height: '180px' }}>
+                                <SignatureCanvas
+                                    ref={sigCanvasRef} // Attach the ref here
+                                    penColor='black'
+                                    canvasProps={{ 
+                                        width: 450, 
+                                        height: 180, 
+                                        className: 'signature-pad-canvas' 
+                                    }}
+                                />
+                            </div>
+                            
                             <button type="button" className="clear-sig" onClick={clearSignaturePad}>Clear</button>
+  
+                             <button type="button" onClick={completeSignature}>
+                                    Accept & Complete Signature
+                                </button>
+  
+  
                             <p className="signature-note">Drawing your signature constitutes your legally binding electronic signature.</p>
                         </div>
+ 
                         <div id="upload-tab" className={`tab-content ${signatureMethod === 'upload' ? 'active' : ''}`}>
                             <label htmlFor="signature_upload">Upload an image file of your signature (PNG, JPG, GIF):</label>
                             <input type="file" id="signature_upload" name="signatureFile" onChange={handleFileChange} accept="image/png, image/jpeg, image/gif" />

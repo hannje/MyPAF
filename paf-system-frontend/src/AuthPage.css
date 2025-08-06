@@ -1,0 +1,321 @@
+/* src/components/AuthPage.css */
+
+.auth-page-container {
+  display: flex;
+  flex-direction: column; /* Stack items vertically */
+  justify-content: center;
+  align-items: center;
+  min-height: 80vh;
+  padding: 20px;
+}
+
+/* --- Styles for the Header (now outside the form box) --- */
+.login-header {
+  text-align: center;
+  margin-bottom: 2rem; /* Increased space between header and form box */
+}
+
+.login-title {
+  font-size: 3.5rem; /* Make it larger and more impactful */
+  font-weight: 700;
+  color: #343a40;
+  margin: 0;
+}
+
+.login-tagline {
+  font-size: 1.1rem;
+  color: #6c757d;
+  margin-top: 0.5rem;
+  margin-bottom: 0;
+}
+/* --- End of Header Styles --- */
+
+
+/* The white box container for the form itself */
+.auth-form-container {
+  width: 100%;
+  max-width: 420px;
+  padding: 2.5rem; /* A bit more padding */
+  border-radius: 8px;
+  box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
+  background-color: #ffffff;
+}
+
+/* Optional: A title for inside the form box */
+.form-title {
+    text-align: center;
+    margin-top: 0;
+    margin-bottom: 1.5rem;
+    color: #495057;
+    font-size: 1.5rem;
+}
+
+
+
+
+.auth-page-container {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    min-height: calc(100vh - 120px); /* Adjust based on navbar/footer height */
+    padding: 20px;
+    background-color: #e9ecef; /* Light grey background */
+}
+
+.auth-form-wrapper {
+    background-color: #fff;
+    padding: 30px 40px;
+    border-radius: 8px;
+    box-shadow: 0 5px 15px rgba(0, 0, 0, 0.1);
+    width: 100%;
+    max-width: 400px;
+    text-align: center;
+}
+
+.auth-form-wrapper h2 {
+    margin-top: 0;
+    margin-bottom: 25px;
+    color: #343a40;
+    font-size: 1.8em;
+}
+
+.auth-page-container .form-group { /* Scoping to avoid conflict */
+    margin-bottom: 20px;
+    text-align: left;
+}
+
+.auth-page-container .form-group label {
+    display: block;
+    margin-bottom: 8px;
+    font-weight: 600;
+    color: #495057;
+}
+
+.auth-page-container .form-group input[type="email"],
+.auth-page-container .form-group input[type="password"] {
+    width: 100%;
+    padding: 12px;
+    border: 1px solid #ced4da;
+    border-radius: 4px;
+    box-sizing: border-box;
+    font-size: 1em;
+}
+.auth-page-container .form-group input:focus {
+    border-color: #80bdff;
+    outline: 0;
+    box-shadow: 0 0 0 0.2rem rgba(0, 123, 255, 0.25);
+}
+
+
+.login-btn {
+    background-color: #007bff;
+    color: white;
+    padding: 12px 20px;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 1.1em;
+    font-weight: 600;
+    width: 100%;
+    transition: background-color 0.2s ease;
+    margin-bottom: 20px;
+}
+
+.login-btn:hover {
+    background-color: #0056b3;
+}
+.login-btn:disabled {
+    background-color: #6c757d;
+    cursor: not-allowed;
+}
+
+.auth-links {
+    margin-top: 20px;
+    font-size: 0.9em;
+    color: #6c757d;
+}
+
+.auth-links .link-button {
+    background: none;
+    border: none;
+    color: #007bff;
+    text-decoration: underline;
+    cursor: pointer;
+    padding: 0;
+    margin-left: 5px;
+    font-size: 1em; /* Match surrounding text */
+}
+.auth-links .link-button:hover {
+    color: #0056b3;
+}
+
+
+.message.auth-error { /* Specific styling for auth errors */
+    background-color: #f8d7da;
+    color: #721c24;
+    border: 1px solid #f5c6cb;
+    padding: 10px;
+    margin-bottom: 20px;
+    border-radius: 4px;
+    text-align: center;
+}
+
+/* src/components/RegisterUserForm.css */
+.register-form-container {
+  max-width: 500px;
+  margin: 40px auto;
+  padding: 30px;
+  background-color: #f9f9f9;
+  border-radius: 8px;
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+}
+
+.register-form-container h2 {
+  text-align: center;
+  margin-bottom: 25px;
+  color: #333;
+}
+
+.form-group {
+  margin-bottom: 20px;
+}
+
+.form-group label {
+  display: block;
+  margin-bottom: 6px;
+  font-weight: bold;
+  color: #555;
+}
+
+.form-group input[type="text"],
+.form-group input[type="email"],
+.form-group input[type="tel"],
+.form-group input[type="password"],
+.form-group select {
+  width: 100%;
+  padding: 10px;
+  border: 1px solid #ccc;
+  border-radius: 4px;
+  box-sizing: border-box; /* Important */
+  font-size: 1em;
+}
+
+.form-group input[type="checkbox"] {
+  margin-right: 8px;
+  vertical-align: middle;
+}
+.checkbox-group .checkbox-label {
+  font-weight: normal;
+  display: inline;
+}
+
+
+.required-indicator {
+  color: red;
+  margin-left: 3px;
+}
+
+.button-container {
+  text-align: center;
+  margin-top: 30px;
+}
+
+.button-container button {
+  background-color: #007bff;
+  color: white;
+  padding: 12px 25px;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 1em;
+  transition: background-color 0.2s ease;
+}
+
+.button-container button:hover {
+  background-color: #0056b3;
+}
+
+.message {
+  padding: 10px;
+  margin-bottom: 20px;
+  border-radius: 4px;
+  text-align: center;
+}
+
+.message.success {
+  background-color: #d4edda;
+  color: #155724;
+  border: 1px solid #c3e6cb;
+}
+
+.message.error {
+  background-color: #f8d7da;
+  color: #721c24;
+  border: 1px solid #f5c6cb;
+}
+
+
+/* src/App.css */
+
+/* ... (keep all your existing App.css styles) ... */
+
+/* Styles for Navbar Links using NavLink */
+.app-navbar .nav-links .nav-link { /* General style for NavLink if you used this class */
+  color: #ecf0f1;
+  margin-left: 20px;
+  text-decoration: none;
+  font-size: 1em;
+  padding: 8px 0; /* Add some padding for better click area and active state appearance */
+  border-bottom: 2px solid transparent; /* Prepare for active underline */
+  transition: color 0.2s ease-in-out, border-bottom-color 0.2s ease-in-out;
+}
+
+.app-navbar .nav-links .nav-link:hover {
+  color: #3498db;
+}
+
+.app-navbar .nav-links .nav-link.active { /* Style for the active NavLink */
+  color: #3498db; /* Brighter blue for active */
+  font-weight: bold; /* Make active link bold */
+  border-bottom-color: #3498db; /* Underline for active link */
+}
+
+
+
+.app-navbar .nav-links .logout-button {
+  background: none;
+  border: none;
+  color: #ecf0f1; /* Light grey for links */
+  margin-left: 20px;
+  text-decoration: none;
+  font-size: 1em;
+  padding: 8px 0;
+  cursor: pointer;
+  font-family: inherit; /* Inherit font from navbar */
+}
+
+.app-navbar .nav-links .logout-button:hover {
+  color: #e74c3c; /* Reddish on hover for logout */
+  text-decoration: underline;
+}
+
+.login-header {
+  text-align: center;
+  margin-bottom: 1.5rem;
+}
+
+.login-title {
+  font-size: 2.5rem; /* Large, prominent title */
+  font-weight: 700;
+  color: #343a40; /* A dark, modern color */
+  margin: 0;
+  /* Optional: Add a subtle text shadow or gradient */
+  /* color: #007bff; */
+}
+
+.login-tagline {
+  font-size: 1rem;
+  color: #6c757d; /* A muted, secondary color */
+  margin-top: 0.5rem;
+  margin-bottom: 0;
+}

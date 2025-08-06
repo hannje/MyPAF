@@ -1,227 +1,247 @@
-import React, { useState } from 'react';
+import React, { useState,useEffect } from 'react'; // Removed useContext for now, assuming backend uses session for creator ID
 import axios from 'axios';
-import './RegisterUserForm.css';
+import './RegisterUserForm.css'; // Or your shared form CSS
 
-function RegisterUserForm() {
-    const [formData, setFormData] = useState({
-        // User fields
-        firstName: '',
-        lastName: '',
-        email: '',
-        phoneNumber: '',
-        department: '',
-        role: 'VIEWER', // Default role for the user being created
-        password: '',
-        confirmPassword: '',
-        isActive: true,
+const API_BASE_URL = 'https://10.72.14.19:3443';
 
-        // Party fields (New)
-        createAssociatedParty: true, // Checkbox to control party creation
-        companyName: '',
-        addressLine1: '',
-        city: '',
-        state: '',
-        zipCode: '',
-        country: 'USA',
-        partyType: 'LIST_OWNER', // Default, or make user select
-        naicsCode: ''
-    });
+function RegisterUserForm({ onUserCreationSuccess }) {
+  // User's own details
+  const [firstName, setFirstName] = useState('');
+  const [lastName, setLastName] = useState('');
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [role, setRole] = useState('USER');
 
-    const [message, setMessage] = useState('');
-    const [error, setError] = useState('');
-    const [isLoading, setIsLoading] = useState(false);
+  const [brokerListAdminRole, setBrokerListAdminRole] = useState(''); // Default to empty
+  
+  const [sic, setSic] = useState('');
+  const [naicsCodes, setNaicsCodes] = useState([]);
+  const [isLoadingNaics, setIsLoadingNaics] = useState(true);
 
-    const handleChange = (e) => {
-        const { name, value, type, checked } = e.target;
-        setFormData(prevState => ({
-            ...prevState,
-            [name]: type === 'checkbox' ? checked : value
-        }));
+useEffect(() => {
+    const fetchNaicsCodes = async () => {
+      setIsLoadingNaics(true);
+      try {
+        const response = await axios.get(`${API_BASE_URL}/api/data/naics-codes`);
+        if (Array.isArray(response.data)) {
+          setNaicsCodes(response.data);
+        }
+      } catch (error) {
+        console.error("RegisterUserForm: Failed to fetch NAICS codes:", error);
+      } finally {
+        setIsLoadingNaics(false);
+      }
+    };
+    fetchNaicsCodes();
+  }, []); // Runs once on mount
+
+
+  // Company/Address details for THIS user
+  // This implies each user can have their own company name and address,
+  // even if they are created by an admin of a main licensee.
+  // If these should default to the admin's licensee info, that's a display/logic choice.
+  const [companyName, setCompanyName] = useState(''); // This could be 'licensee_name' on their user record
+  const [streetAddress, setStreetAddress] = useState('');
+  const [city, setCity] = useState('');
+  const [state, setStateVal] = useState('');
+  const [zipCode, setZipCode] = useState('');
+  const [phoneNumber, setPhoneNumber] = useState('');
+
+  const [message, setMessage] = useState('');
+  const [error, setError] = useState('');
+  const [isLoading, setIsLoading] = useState(false);
+
+  const handleSubmit = async (event) => {
+    event.preventDefault();
+    setMessage('');
+    setError('');
+    setIsLoading(true);
+
+    // Basic validation
+    if (!firstName || !lastName || !email || !password || !role) {
+      setError('First Name, Last Name, Email, Password, and Role are required.');
+      setIsLoading(false);
+      return;
+    }
+    // Add validation for companyName if it's required for new users
+
+    const newUserData = {
+      firstName: firstName.trim(),
+      lastName: lastName.trim(),
+      email: email.trim(),
+      password: password,
+      role: role,
+      brokerListAdmin: brokerListAdminRole, 
+
+      sic: sic,
+
+
+      // Company/Address details for this specific user
+      // These will be stored on their own record in the users table.
+      // The backend 'users' table needs columns like 'licensee_name' (for companyName),
+      // 'street_address', 'city', 'state', 'zip_code', 'phone_number'.
+      licenseeName: companyName.trim() || null, // Using 'licenseeName' key to match table schema
+      streetAddress: streetAddress.trim() || null,
+      city: city.trim() || null,
+      state: state.trim() || null,
+      zipCode: zipCode.trim() || null,
+      phoneNumber: phoneNumber.trim() || null,
+      adminID:1
+      // created_by_admin_id will be set by the backend based on the logged-in admin's session
     };
 
-    const handleSubmit = async (e) => {
-        e.preventDefault();
-        setMessage('');
-        setError('');
-        setIsLoading(true);
-
-        if (formData.password !== formData.confirmPassword) {
-            setError("User passwords do not match.");
-            setIsLoading(false);
-            return;
-        }
-        if (formData.password.length < 8) {
-            setError("User password must be at least 8 characters long.");
-            setIsLoading(false);
-            return;
-        }
-        if (!formData.firstName || !formData.lastName || !formData.email || !formData.role || !formData.password) {
-            setError("Please fill in all required user fields.");
-            setIsLoading(false);
-            return;
-        }
-
-        // Validate party fields if createAssociatedParty is checked
-        if (formData.createAssociatedParty) {
-            if (!formData.companyName || !formData.addressLine1 || !formData.city || !formData.state || !formData.zipCode || !formData.partyType) {
-                setError("Please fill in all required company/party fields if creating an associated party.");
-                setIsLoading(false);
-                return;
-            }
-            // Add NAICS validation if partyType requires it (e.g., LIST_OWNER, BROKER_AGENT)
-            if ((formData.partyType === 'LIST_OWNER' || formData.partyType === 'BROKER_AGENT') && !formData.naicsCode) {
-                setError("NAICS code is required for List Owners and Brokers/Agents.");
-                setIsLoading(false);
-                return;
-            }
-        }
+    try {
 
 
-        try {
-            const apiUrl = 'http://localhost:3001/api/users/create-with-party'; // New API endpoint
 
-            const response = await axios.post(apiUrl, formData);
+      console.log('RegisterUserForm: Submittingxxx to /api/users/create-by-admin with data:', newUserData);
+     
+      const url = new URL('/api/users/create-by-admin', API_BASE_URL);
+      console.log('API URL:', url.toString());
+        
+     // const response = await axios.post(`${API_BASE_URL}/api/users/create-by-admin`,newUserData,{
+      const response = await axios.post(url,newUserData,{
+        withCredentials: true});
 
-            setMessage(response.data.message || 'User and Party created successfully!');
-            setFormData({ // Reset form
-                firstName: '', lastName: '', email: '', phoneNumber: '', department: '',
-                role: 'VIEWER', password: '', confirmPassword: '', isActive: true,
-                createAssociatedParty: true, companyName: '', addressLine1: '', city: '',
-                state: '', zipCode: '', country: 'USA', partyType: 'LIST_OWNER', naicsCode: ''
-            });
 
-        } catch (err) {
-            if (err.response && err.response.data && err.response.data.error) {
-                setError(err.response.data.error);
-            } else {
-                setError('Error creating user/party: ' + (err.message || 'Please check API.'));
-            }
-            console.error("Error:", err);
-        } finally {
-            setIsLoading(false);
-        }
-    };
+      const userDisplayName = `${response.data.user.firstName || ''} ${response.data.user.lastName || ''}`.trim() || response.data.user.email;
+      setMessage(`User "${userDisplayName}" created successfully!`);
 
-    return (
-        <div className="register-form-container user-party-form">
-            <h2>Register New User & Associated Company/Party</h2>
+      // Clear form
+      setFirstName(''); setLastName(''); setEmail(''); setPassword(''); setRole('USER');
+      setCompanyName(''); setStreetAddress(''); setCity(''); setStateVal(''); setZipCode(''); setPhoneNumber('');
 
-            {message && <div className="message success">{message}</div>}
-            {error && <div className="message error">{error}</div>}
+      if (onUserCreationSuccess) {
+        onUserCreationSuccess(response.data.user);
+      }
+    } catch (err) {
+      // ... (error handling as before) ...
+      console.log('RegisterUserForm: User creation error:', err.response?.data?.message || err.message || err);
+      console.error('User creation error:', err.response?.data?.message || err.message || err);
+      setError(
+        (err.response && err.response.data && err.response.data.message) ||
+        err.message ||
+        'Failed to create user. Please try again.'
+      );
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
-            <form onSubmit={handleSubmit}>
-                <fieldset className="form-section">
-                    <legend>User Account Details</legend>
-                    {/* ... (existing user fields: firstName, lastName, email, phoneNumber, department, role, password, confirmPassword, isActive) ... */}
-                    <div className="form-group">
-                        <label htmlFor="firstName">First Name<span className="required-indicator">*</span></label>
-                        <input type="text" id="firstName" name="firstName" value={formData.firstName} onChange={handleChange} required />
-                    </div>
-                    <div className="form-group">
-                        <label htmlFor="lastName">Last Name<span className="required-indicator">*</span></label>
-                        <input type="text" id="lastName" name="lastName" value={formData.lastName} onChange={handleChange} required />
-                    </div>
-                    <div className="form-group">
-                        <label htmlFor="email">User Email (Login)<span className="required-indicator">*</span></label>
-                        <input type="email" id="email" name="email" value={formData.email} onChange={handleChange} required />
-                    </div>
-                    <div className="form-group">
-                        <label htmlFor="role">User Role<span className="required-indicator">*</span></label>
-                        <select id="role" name="role" value={formData.role} onChange={handleChange} required>
-                            <option value="VIEWER">Viewer</option>
-                            <option value="DATA_ENTRY">Data Entry</option>
-                            <option value="PAF_MANAGER">PAF Manager (Represents a Party)</option>
-                            <option value="ADMIN">System Admin</option>
-                        </select>
-                    </div>
-                    <div className="form-group">
-                        <label htmlFor="password">User Password<span className="required-indicator">*</span></label>
-                        <input type="password" id="password" name="password" value={formData.password} onChange={handleChange} required minLength="8" />
-                    </div>
-                    <div className="form-group">
-                        <label htmlFor="confirmPassword">Confirm Password<span className="required-indicator">*</span></label>
-                        <input type="password" id="confirmPassword" name="confirmPassword" value={formData.confirmPassword} onChange={handleChange} required minLength="8" />
-                    </div>
-                     <div className="form-group">
-                        <label htmlFor="phoneNumber">User Phone Number</label>
-                        <input type="tel" id="phoneNumber" name="phoneNumber" value={formData.phoneNumber} onChange={handleChange} />
-                    </div>
-                    <div className="form-group">
-                        <label htmlFor="department">User Department</label>
-                        <input type="text" id="department" name="department" value={formData.department} onChange={handleChange} />
-                    </div>
-                     <div className="form-group checkbox-group">
-                        <input type="checkbox" id="isActive" name="isActive" checked={formData.isActive} onChange={handleChange} />
-                        <label htmlFor="isActive" className="checkbox-label">User Account Active</label>
-                    </div>
-                </fieldset>
+  return (
+    <div className="form-container">
+      <h2>Create New User</h2>
+      <p><em>This user will be associated with your administrator account. Fill in their details below.</em></p>
+      <form onSubmit={handleSubmit} className="form">
+        <fieldset style={{ border: '1px solid #ddd', padding: '15px', marginBottom: '15px' }}>
+          <legend>User Account Details</legend>
+          <div className="form-group">
+            <label htmlFor="create-user-firstName">First Name:</label>
+            <input type="text" id="create-user-firstName" value={firstName} onChange={(e) => setFirstName(e.target.value)} required />
+          </div>
+          <div className="form-group">
+            <label htmlFor="create-user-lastName">Last Name:</label>
+            <input type="text" id="create-user-lastName" value={lastName} onChange={(e) => setLastName(e.target.value)} required />
+          </div>
+          <div className="form-group">
+            <label htmlFor="create-user-email">Email (for login):</label>
+            <input type="email" id="create-user-email" value={email} onChange={(e) => setEmail(e.target.value)} required />
+          </div>
+          <div className="form-group">
+            <label htmlFor="create-user-password">Password:</label>
+            <input type="password" id="create-user-password" value={password} onChange={(e) => setPassword(e.target.value)} required />
+          </div>
+  
+  
+          <div className="form-group">
+            <label>Type (Required):</label>
+            <div className="radio-group">
+              <label style={{ marginRight: '20px', cursor: 'pointer' }}>
+                <input
+                  type="radio"
+                  name="brokerListAdminRole"
+                  value="broker"
+                  checked={brokerListAdminRole === 'broker'}
+                  onChange={(e) => setBrokerListAdminRole(e.target.value)}
+                  required
+                />
+                Broker
+              </label>
+              <label style={{ cursor: 'pointer' }}>
+                <input
+                  type="radio"
+                  name="brokerListAdminRole"
+                  value="listadmin"
+                  checked={brokerListAdminRole === 'listadmin'}
+                  onChange={(e) => setBrokerListAdminRole(e.target.value)}
+                  required
+                />
+                List Administrator
+              </label>
+            </div>
+          </div>
+         <div className="form-group">
+            <label htmlFor="user-sic">NAICS Code (Required):</label>
+            <select
+              id="user-sic"
+              value={sic}
+              onChange={(e) => setSic(e.target.value)}
+              disabled={isLoadingNaics}
+              required
+            >
+              <option value="">
+                {isLoadingNaics ? 'Loading NAICS codes...' : 'Select a NAICS Code'}
+              </option>
+              {naicsCodes.map(naics => (
+                <option key={naics.code} value={naics.code}>
+                  {naics.label}
+                </option>
+              ))}
+            </select>
+          </div>
+        </fieldset>
 
-                <fieldset className="form-section">
-                    <legend>
-                        <input
-                            type="checkbox"
-                            id="createAssociatedParty"
-                            name="createAssociatedParty"
-                            checked={formData.createAssociatedParty}
-                            onChange={handleChange}
-                            style={{ marginRight: '10px', verticalAlign: 'middle' }}
-                        />
-                        Create Associated Company/Party Record
-                    </legend>
+        <fieldset style={{ border: '1px solid #ddd', padding: '15px' }}>
+          <legend>User's Company & Address Information (Optional)</legend>
+          <p style={{fontSize: '0.9em', color: '#555'}}>
+            Provide these if this user has distinct company/address details.
+            Otherwise, they are associated with your main Licensee scope.
+            The `usps_license_id` for this user will be inherited from you (the creating admin).
+          </p>
+          <div className="form-group">
+            <label htmlFor="create-user-companyName">Company Name (if different):</label>
+            <input type="text" id="create-user-companyName" value={companyName} onChange={(e) => setCompanyName(e.target.value)} />
+          </div>
+          <div className="form-group">
+            <label htmlFor="create-user-streetAddress">Street Address:</label>
+            <input type="text" id="create-user-streetAddress" value={streetAddress} onChange={(e) => setStreetAddress(e.target.value)} />
+          </div>
+          <div className="form-group">
+            <label htmlFor="create-user-city">City:</label>
+            <input type="text" id="create-user-city" value={city} onChange={(e) => setCity(e.target.value)} />
+          </div>
+          <div className="form-group">
+            <label htmlFor="create-user-state">State:</label>
+            <input type="text" id="create-user-state" value={state} onChange={(e) => setStateVal(e.target.value)} />
+          </div>
+          <div className="form-group">
+            <label htmlFor="create-user-zipCode">Zip Code:</label>
+            <input type="text" id="create-user-zipCode" value={zipCode} onChange={(e) => setZipCode(e.target.value)} />
+          </div>
+          <div className="form-group">
+            <label htmlFor="create-user-phoneNumber">Phone Number:</label>
+            <input type="tel" id="create-user-phoneNumber" value={phoneNumber} onChange={(e) => setPhoneNumber(e.target.value)} />
+          </div>
+        </fieldset>
 
-                    {formData.createAssociatedParty && (
-                        <>
-                            <div className="form-group">
-                                <label htmlFor="companyName">Company Name<span className="required-indicator">*</span></label>
-                                <input type="text" id="companyName" name="companyName" value={formData.companyName} onChange={handleChange} required={formData.createAssociatedParty} />
-                            </div>
-                            <div className="form-group">
-                                <label htmlFor="partyType">Company/Party Type<span className="required-indicator">*</span></label>
-                                <select id="partyType" name="partyType" value={formData.partyType} onChange={handleChange} required={formData.createAssociatedParty}>
-                                    <option value="LIST_OWNER">List Owner (Customer)</option>
-                                    <option value="BROKER_AGENT">Broker / Agent</option>
-                                    <option value="LIST_ADMINISTRATOR">List Administrator</option>
-                                    {/* LICENSEE type would usually be pre-existing and not created this way */}
-                                </select>
-                            </div>
-                             <div className="form-group">
-                                <label htmlFor="naicsCode">NAICS Code { (formData.partyType === 'LIST_OWNER' || formData.partyType === 'BROKER_AGENT') && <span className="required-indicator">*</span>}</label>
-                                <input type="text" id="naicsCode" name="naicsCode" value={formData.naicsCode} onChange={handleChange} required={formData.createAssociatedParty && (formData.partyType === 'LIST_OWNER' || formData.partyType === 'BROKER_AGENT')} />
-                                <small>Required for List Owners and Brokers/Agents.</small>
-                            </div>
-                            <div className="form-group">
-                                <label htmlFor="addressLine1">Address Line 1<span className="required-indicator">*</span></label>
-                                <input type="text" id="addressLine1" name="addressLine1" value={formData.addressLine1} onChange={handleChange} required={formData.createAssociatedParty} />
-                            </div>
-                            {/* Add fields for address_line2, city, state, zipCode, country as needed */}
-                            <div className="form-group">
-                                <label htmlFor="city">City<span className="required-indicator">*</span></label>
-                                <input type="text" id="city" name="city" value={formData.city} onChange={handleChange} required={formData.createAssociatedParty} />
-                            </div>
-                            <div className="form-group">
-                                <label htmlFor="state">State<span className="required-indicator">*</span></label>
-                                <input type="text" id="state" name="state" value={formData.state} onChange={handleChange} required={formData.createAssociatedParty} />
-                            </div>
-                            <div className="form-group">
-                                <label htmlFor="zipCode">Zip Code<span className="required-indicator">*</span></label>
-                                <input type="text" id="zipCode" name="zipCode" value={formData.zipCode} onChange={handleChange} required={formData.createAssociatedParty} />
-                            </div>
-                             <div className="form-group">
-                                <label htmlFor="country">Country<span className="required-indicator">*</span></label>
-                                <input type="text" id="country" name="country" value={formData.country} onChange={handleChange} required={formData.createAssociatedParty} />
-                            </div>
-                        </>
-                    )}
-                </fieldset>
-
-                <div className="button-container">
-                    <button type="submit" disabled={isLoading}>
-                        {isLoading ? 'Processing...' : 'Register User & Party'}
-                    </button>
-                </div>
-            </form>
-        </div>
-    );
+        <button type="submit" className="submit-button" disabled={isLoading} style={{ marginTop: '20px' }}>
+          {isLoading ? 'Creating User...' : 'Create User'}
+        </button>
+      </form>
+      {message && <p className="success-message" style={{ color: 'green', marginTop: '10px' }}>{message}</p>}
+      {error && <p className="error-message" style={{ color: 'red', marginTop: '10px' }}>{error}</p>}
+    </div>
+  );
 }
 
 export default RegisterUserForm;

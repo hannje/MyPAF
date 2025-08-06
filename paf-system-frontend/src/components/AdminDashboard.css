@@ -3,21 +3,52 @@
     padding: 20px;
     background-color: #f4f7f6; /* Light background for the whole page */
 }
+/* --- Dashboard Header Styles --- */
 
 .dashboard-header {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    margin-bottom: 25px;
-    padding-bottom: 15px;
-    border-bottom: 1px solid #e0e0e0;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  
+  /* VVVVVV CHANGES FOR A SMALLER HEADER VVVVVV */
+  padding-bottom: 0.75rem; /* Reduced bottom padding */
+  margin-bottom: 1.25rem; /* Reduced bottom margin */
+  /* AAAAAA END OF CHANGES AAAAAA */
+
+  border-bottom: 1px solid #dee2e6;
+  flex-wrap: wrap;
+  gap: 1rem;
 }
 
 .dashboard-header h1 {
-    margin: 0;
-    color: #2c3e50;
-    font-size: 1.8em;
+  margin: 0;
+  /* VVVVVV CHANGE FOR SMALLER HEADER VVVVVV */
+  font-size: 1.5rem; /* Reduced font size for the main title */
+  /* AAAAAA END OF CHANGE AAAAAA */
 }
+
+.dashboard-header .welcome-message {
+  text-align: center;
+  color: #495057;
+  flex-grow: 1;
+  margin: 0;
+  
+  /* VVVVVV CHANGE TO MAKE TEXT BOLD VVVVVV */
+  font-weight: bold;
+  /* AAAAAA END OF CHANGE AAAAAA */
+
+  /* Optional: slightly smaller font size if needed */
+  /* font-size: 0.95rem; */
+}
+
+/* You might want to adjust the style for the smaller text inside the welcome message */
+.dashboard-header .welcome-message small {
+    font-weight: normal; /* Make the smaller text not bold */
+    font-size: 0.85rem;
+    color: #6c757d;
+}
+
+/* Keep your other styles like .action-ribbon, etc. */
 
 .add-paf-btn {
     background-color: #28a745;
@@ -194,4 +225,183 @@
 .paf-table .actions .validate-btn:hover {
     background-color: #007bff;
     color: white;
+}
+
+/* In AdminDashboard.css or a relevant CSS file */
+
+/* ... your existing styles ... */
+
+.paf-status {
+  font-weight: bold;
+  padding: 4px 8px;
+  border-radius: 4px;
+  color: white;
+  text-align: center;
+  white-space: nowrap; /* Prevents text wrapping */
+}
+
+.status-pending {
+  background-color: #ffc107; /* A yellow/orange color */
+  color: #333;
+}
+
+.status-rejected {
+  background-color: #dc3545; /* A red color */
+}
+
+/* VVVVVV ADD THIS NEW CLASS VVVVVV */
+.status-validated {
+  background-color: #28a745; /* A nice, standard green */
+  /* If you want DARK green, you could use something like #198754 or #006400 */
+  /* background-color: #006400;  // Dark Green */
+}
+/* ^^^^^^ END OF NEW CLASS ^^^^^^ */
+
+.status-other {
+  background-color: #6c757d; /* A neutral grey */
+}
+
+/* Add this new style block for the action ribbon */
+.action-ribbon {
+  background-color: #f8f9fa; /* A light grey background */
+  padding: 1rem;
+  margin-bottom: 1.5rem;
+  border-radius: 0.5rem;
+  border: 1px solid #dee2e6;
+  display: flex;
+  flex-wrap: wrap; /* Allows items to wrap on smaller screens */
+  align-items: center;
+  gap: 1rem; /* Adds space between items */
+}
+
+.action-ribbon h2 {
+  margin: 0;
+  margin-right: 1.5rem; /* Space after the title */
+  font-size: 1.2rem;
+  color: #495057;
+}
+
+.action-ribbon .button-group {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem; /* Space between buttons */
+}
+
+/* You can reuse your existing button styles or create specific ones */
+.action-ribbon .action-button {
+  display: inline-block;
+  padding: 8px 12px;
+  background-color: #6c757d; /* A neutral admin color */
+  color: white;
+  text-decoration: none;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 0.9rem;
+  transition: background-color 0.2s;
+}
+
+.action-ribbon .action-button:hover {
+  background-color: #5a6268;
+}
+
+.action-ribbon .export-feedback {
+    font-weight: bold;
+    color: #007bff;
+    margin-left: 1rem;
+}
+
+.action-ribbon .action-button.btn-create {
+  background-color: #5a58df; /* A standard "success" green */
+}
+.action-ribbon .action-button.btn-create:hover {
+  background-color: #218838; /* A slightly darker green for hover */
+}
+
+/* Style for "Export" buttons (blue) */
+.action-ribbon .action-button.btn-export {
+  background-color: #17a2b8; /* A standard "info" blue/teal */
+}
+.action-ribbon .action-button.btn-export:hover {
+  background-color: #138496; /* A slightly darker blue/teal for hover */
+}
+
+/* You can keep the default grey for other admin buttons or create more classes */
+/* For example, a neutral "Add Admin" button */
+.action-ribbon .action-button.btn-admin {
+  background-color: #6948b8; /* A neutral grey */
+}
+.action-ribbon .action-button.btn-admin:hover {
+  background-color: #5a6268;
+}
+
+/* Add this alongside your other status-badge styles */
+
+.status-badge.status-expired {
+  background-color: #6c757d; /* A neutral, muted grey */
+  color: #fff;
+  border: 1px solid #5a6268;
+}
+
+/* Optional: Style the entire row for expired PAFs */
+tr.paf-expired {
+  background-color: #f8f9fa; /* A very light grey */
+  color: #6c757d; /* Muted text color */
+}
+
+tr.paf-expired a {
+    color: #495057; /* Darker link color on a light grey background */
+}
+
+/* Add this alongside your other status/date styles */
+
+/* Style for dates that are expiring within 30 days */
+.date-expiring-soon {
+  color: #dc3545; /* A standard "danger" red color */
+  font-weight: bold;
+}
+
+/* Existing style for already expired dates (good to have for consistency) */
+.date-expired {
+  color: #6c757d; /* A muted grey */
+  text-decoration: line-through;
+}
+
+/* Optional: Style for the entire expired row */
+tr.paf-expired td {
+  color: #6c757d;
+}
+tr.paf-expired .status-badge.status-expired {
+  background-color: #6c757d;
+  color: #fff;
+}
+
+.paf-table.user-table thead th {
+  font-weight: bold;      /* Makes the text bold */
+  font-size: 1.1em;       /* Makes the font slightly larger (e.g., 10% larger than normal text) */
+  
+  /* Optional but recommended for better appearance */
+  background-color: #f8f9fa; /* Adds a very light grey background to the header row */
+  color: #212529;           /* Ensures a dark, readable text color */
+  padding: 12px 15px;       /* Adds some comfortable spacing */
+  text-align: left;         /* Standard alignment for table headers */
+}
+
+.paf-table thead th {
+  font-weight: bold;      /* Makes the text bold */
+  font-size: 1.1em;       /* Makes the font slightly larger */
+  
+  /* Recommended styles for better appearance */
+  background-color: #f8f9fa; /* Light grey background */
+  color: #c07d31;           /* Dark, readable text color */
+  padding: 12px 15px;       /* Comfortable spacing */
+  text-align: left;         /* Standard alignment */
+  /* Adds a subtle bottom border to the header row */
+  border-bottom: 2px solid #dee2e6; 
+}
+
+.status-badge.status-agent-approval {
+  background-color: #ffc107; /* A warning yellow/orange */
+  color: #212529; /* Dark text */
+  border: 1px solid #ffb22b;
 }

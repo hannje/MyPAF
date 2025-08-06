@@ -5,8 +5,7 @@ import axios from 'axios';
 import { Link, useNavigate } from 'react-router-dom'; // useNavigate for programmatic navigation
 import './UserDashboard.css';
 
-const API_BASE_URL = 'http://localhost:3001/api';
-
+const API_BASE_URL = 'https://10.72.14.19:3443/api';
 
 
 function UserDashboard({ currentUser }) { // currentUser is passed as a prop from App.js
@@ -24,8 +23,7 @@ function UserDashboard({ currentUser }) { // currentUser is passed as a prop fro
         const fetchMyPafs = async (page = 1) => {
 
             console.log("USER DASH: currentUser object:", JSON.stringify(currentUser, null, 2));
-            console.log("USER DASH: currentUser.associated_party_id:", currentUser.associated_party_id);
-            if (!currentUser || (!currentUser.user_id && !currentUser.associatedPartyId)) {
+            if (!currentUser || (!currentUser.id )) {
                 setError("User information not available to fetch PAFs. Please log in again.");
                 setLoadingPafs(false);
                 setMyPafs([]); // Clear any existing pafs
@@ -39,39 +37,40 @@ function UserDashboard({ currentUser }) { // currentUser is passed as a prop fro
             // Prepare query parameters
             // The backend's mock authenticateUser will use testUserId or x-user-id for now.
             // When real auth is in place, the backend gets user from token/session.
-            // The frontend can still send associated_party_id if known, for clarity or if backend needs it.
+            // The frontend can still send party_id if known, for clarity or if backend needs it.
             let queryParams = `?limit=${PAFS_PER_PAGE}&page=${page}`;
-            if (currentUser.associated_party_id) {
-                queryParams += `&partyId=${currentUser.associated_party_id}`;
-            }
             // For testing the mock auth in backend:
             // queryParams += `&testUserId=${currentUser.user_id}`;
 
 
             try {
-                console.log(`USER DASH: Attempting to fetch user PAFs. API: ${API_BASE_URL}/user/pafs${queryParams}`);
+//                console.log(`USER DASH: Attempting to fetch user PAFs. API: ${API_BASE_URL}/pafs/my-pafs${queryParams}`);
                 // For testing mock auth with header:
-                 const headers = { 'x-user-id': currentUser.user_id };
+                 const headers = { 'x-user-id': currentUser.id };
 
                  console.log("USER DASHBOARD: currentUser for PAF fetch:", JSON.stringify(currentUser, null, 2));
 
-                 const response = await axios.get(`${API_BASE_URL}/user/pafs${queryParams}`, { headers });
+                  const response = await axios.get(`${API_BASE_URL}/pafs/my-pafs`, {
+                   withCredentials: true });
+
 //                const response = await axios.get(`${API_BASE_URL}/user/pafs${queryParams}`);
 
 
-                console.log("USER DASH: User PAFs API Response:", response.data);
+ //               console.log("USER DASH: User PAFs API Response:", response.data);
                 if (response.data && Array.isArray(response.data)) { // Check if response.data itself is the array
+                    
+ //                   console.log("USER DASH: Response data is an array of PAFs.",response.data);
                     setMyPafs(response.data);
                     // You'd need a separate way to get totalPafs, currentPage, totalPages if not in the response
                     setPafPagination({ totalPafs: response.data.length, currentPage: 1, totalPages: 1 }); // Simple pagination
                 }
-               else if (response.data && Array.isArray(response.data.pafs)) {
-                    setMyPafs(response.data.pafs);
-                    setPafPagination({
-                        totalPafs: response.data.totalPafs,
-                        currentPage: response.data.currentPage,
-                        totalPages: response.data.totalPages
-                    });
+               else if (response.data ) {
+                    setMyPafs(response.data);
+  //                  setPafPagination({
+  //                      totalPafs: response.data.length,
+  //                      currentPage: response.data.currentPage,
+  //                      totalPages: response.data.totalPages
+  //                  });
                 } 
                  
                 else 
@@ -131,11 +130,67 @@ function UserDashboard({ currentUser }) { // currentUser is passed as a prop fro
         <div className="user-dashboard-container">
             <div className="dashboard-header">
                 <h1>My PAF Dashboard</h1>
-                <p>Welcome, {currentUser.first_name || currentUser.email}!</p>
+                <p>Welcome, {currentUser.first_name || currentUser.email}!
+                           (Role: {currentUser.role}, User ID: {currentUser.id || 'N/A'})
+
+                </p>
             </div>
 
             {error && <div className="message error">{error}</div>}
+<div className="button-container" style={{ marginTop: '15px' }}>
+          {/*
+            VVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVV
+            HERE IS THE <Link> COMPONENT FOR THE "INITIATE NEW PAF" BUTTON/LINK
+            VVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVV
+          */}
+          <Link to="/pafs/new" className="action-button create-paf-button" style={{
+            display: 'inline-block',
+            padding: '10px 15px',
+            backgroundColor: '#007bff', // Example primary button color
+            color: 'white',
+            textDecoration: 'none',
+            borderRadius: '4px',
+            marginRight: '10px'
+          }}>
+            + Initiate New PAF
+          </Link>
 
+          <Link 
+            to={`/profile/edit`} // <<< New route for editing the logged-in user's profile
+            className="action-button edit-profile-button" 
+style={{
+            display: 'inline-block',
+            padding: '10px 15px',
+            backgroundColor: '#6600ff', // Example primary button color
+            color: 'white',
+            textDecoration: 'none',
+            borderRadius: '4px',
+            marginRight: '10px'
+          }}>          
+            Edit My Profile
+          </Link>
+
+
+          {/*
+            AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
+            END OF THE <Link> COMPONENT
+            AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
+          */}
+
+          {/* You could add other links/buttons here, for example: */}
+          {/*
+          <Link to="/pafs/my-list" className="action-button view-pafs-button" style={{
+            display: 'inline-block',
+            padding: '10px 15px',
+            backgroundColor: '#6c757d', // Example secondary button color
+            color: 'white',
+            textDecoration: 'none',
+            borderRadius: '4px'
+          }}>
+            View My PAFs
+          </Link>
+          */}
+        </div>
             <div className="paf-list-section">
                 <h2>My Associated PAFs</h2>
                 {loadingPafs ? (
@@ -146,8 +201,9 @@ function UserDashboard({ currentUser }) { // currentUser is passed as a prop fro
                             <thead>
                                 <tr>
                                     <th>PAF ID (Licensee)</th>
-                                    <th>List Owner</th>
-                                    <th>Jurisdiction</th>
+                                    <th>CreatorID</th>
+                                    <th>AgentID</th>
+                                    <th>Firm</th>
                                     <th>Status</th>
                                     <th>Date Issued / Last Update</th>
                                     <th>Expiration</th>
@@ -158,38 +214,59 @@ function UserDashboard({ currentUser }) { // currentUser is passed as a prop fro
                             {myPafs.map(paf => {
                                 // Condition for showing the "Approve PAF" button
                                 const canApproveAsListOwner =
-                                    paf.status === 'PENDING_LIST_OWNER_SIGNATURE' &&
-                                    currentUser.associated_party_id && // User must represent a party
-                                    paf.list_owner_id && // PAF must have a list_owner_id
-                                    paf.list_owner_id.toString() === currentUser.associated_party_id.toString();
- 
-                               console.log("USER DASH: paf:", paf);
+                                    paf.status === 'PENDING_LIST_OWNER_APPROVAL' &&
+                                    paf.createdByUserId && // PAF must have a list_owner_id
+                                    paf.createdByUserId === currentUser.id;
+
+                                const canApproveAsAgent =
+                                    paf.status === 'PENDING_AGENT_APPROVAL' &&
+                                    paf.agentId === currentUser.id;
+
+                                    
+
+                               console.log("USER DASH: paf:", paf,canApproveAsAgent);
                                console.log("USER DASH: currentUser:", currentUser);
  
                                 return (
                                     <tr key={paf.internalDbId}>
-                                        <td>{paf.pafId || `DB ID: ${paf.internalDbId}`}</td>
-                                        <td>{paf.listOwner}</td>
-                                        <td>{paf.jurisdiction}</td>
+                                        <td>{paf.licenseeId || `DB ID: ${paf.id}`}</td>
+                                        <td>{paf.listOwnerId}</td>
+                                        <td>{paf.agentId}</td>
+                                        <td>{paf.companyName}</td>
                                         <td>
                                             <span className={`status ${getStatusClass(paf.status)}`}>
                                                 {paf.status ? paf.status.replace(/_/g, ' ') : 'N/A'}
                                             </span>
                                         </td>
-                                        <td>{formatDate(paf.lastUpdated || paf.date_issued)}</td>
+                                        <td>{formatDate(paf.updatedAt || paf.date_issued)}</td>
                                         {/* <td>{formatDate(paf.calculated_expiration_date)}</td> */}
+  
+                                         <td>{formatDate(paf.updatedAt || paf.date_issued)}</td>
+  
                                         <td className="actions">
-                                            <Link to={`/pafs/view/${paf.internalDbId}`}>View Details</Link>
+                                            <Link to={`/pafs/view/${paf.id}`}>View Details</Link>
                                             {canApproveAsListOwner && (
                                                 <button
-                                                    onClick={() => navigate(`/pafs/approve/${paf.internalDbId}`)}
+                                                    onClick={() => navigate(`/pafs/approve/${paf.id}`)}
                                                     className="action-button approve-lo-btn"
                                                     style={{marginLeft: '10px'}}
-                                                    title={`Approve PAF as List Owner (Your Party ID: ${currentUser.associatedPartyId})`}
+                                                    title={`Approve PAF as List Owner (Your ID: ${currentUser.id})`}
                                                 >
                                                     Approve PAF
                                                 </button>
                                             )}
+                                           {canApproveAsAgent && (
+                                                <button
+                                                    onClick={() => navigate(`/pafs/agent-approve/${paf.id}`)}
+                                                    className="action-button approve-lo-btn"
+                                                    style={{marginLeft: '10px'}}
+                                                    title={`Approve PAF as Agent (Your ID: ${currentUser.id})`}
+                                                >
+                                                    Approve as Agent
+                                                </button>
+                                            )}
+
+
                                         </td>
                                     </tr>
                                 );
