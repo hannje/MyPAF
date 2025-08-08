@@ -4,7 +4,7 @@ import axios from 'axios'; // Still useful for making API calls
 import apiClient from '../api/apiClient'; // <<< IMPORT your new apiClient
 
 //const API_BASE_URL = process.env.REACT_APP_API_URL || 'http://10.72.14.19:3001';
-const API_BASE_URL = 'https://10.72.14.19:3443';
+const API_BASE_URL = process.env.REACT_APP_API_URL || 'https://10.72.14.19:3443';
 
 const AuthContext = createContext(null);
 
@@ -50,8 +50,8 @@ export const AuthProvider = ({ children }) => {
 
 
   const login = async (email, password) => {
- //   console.log('[AuthContext] login: Called. Setting isLoadingAuth to TRUE.');
-    setIsLoadingAuth(true); // Set loading true at the very start
+    console.log('[AuthContext] login: Called. NOT setting isLoadingAuth here.');
+    // Don't set loading state in context - let component handle it
 
     try {
 
@@ -80,11 +80,8 @@ export const AuthProvider = ({ children }) => {
       setAdminUser(null); // Clear any previous user state
       throw error; // Re-throw the error for the component to handle (e.g., to show "Invalid credentials")
     } finally {
-      // VVVVVV THIS IS THE GUARANTEED FIX VVVVVV
-      // This block will run after the 'try' succeeds OR after the 'catch' block runs.
- //     console.log('[AuthContext] login: FINALLY block. Setting isLoadingAuth to FALSE.');
-      setIsLoadingAuth(false);
-      // AAAAAA END OF FIX AAAAAA
+      // Don't set loading state in context - let component handle it
+      console.log('[AuthContext] login: FINALLY block. NOT setting isLoadingAuth.');
     }
   };
 

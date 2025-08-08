@@ -33,7 +33,10 @@ function Navbar() {
   if (isLoadingAuth && !adminUser) { // Show minimal navbar or nothing during initial auth load
     return (
         <nav className="app-navbar">
-            <NavLink to="/" className="nav-brand">PAF System</NavLink>
+            <NavLink to="/" className="nav-brand">
+              PAF System
+              <span className="version-tag">v{process.env.REACT_APP_VERSION || 'DEV'}</span>
+            </NavLink>
             <div className="nav-links">Loading...</div>
         </nav>
     );
@@ -44,6 +47,7 @@ function Navbar() {
       
       <NavLink to={isAuthenticated ? (adminUser?.role === 'ADMIN' ? "/admin-dashboard" : "/user-dashboard") : "/login"} className="nav-brand">
         PAF System
+        <span className="version-tag">v{process.env.REACT_APP_VERSION || 'DEV'}</span>
       </NavLink>
 
       <div className="nav-links">

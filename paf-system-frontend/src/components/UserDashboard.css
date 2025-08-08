@@ -12,21 +12,90 @@
     display: flex;
     justify-content: space-between;
     align-items: center;
-    margin-bottom: 25px;
-    padding-bottom: 15px;
-    border-bottom: 1px solid #e0e0e0;
-}
-.user-dashboard-container .dashboard-header h1 {
-    margin: 0;
-    color: #2c3e50;
-    font-size: 1.7em;
-}
-.user-dashboard-container .dashboard-header p {
-    margin: 0;
-    color: #555;
-    font-size: 0.95em;
+    padding-bottom: 0.75rem;
+    margin-bottom: 1.25rem;
+    border-bottom: 1px solid #dee2e6;
 }
 
+.user-dashboard-container .dashboard-header h1 {
+    margin: 0;
+    font-size: 1.5rem;
+    color: #2c3e50;
+}
+
+.user-dashboard-container .dashboard-header .welcome-message {
+    text-align: center;
+    color: #495057;
+    flex-grow: 1;
+    margin: 0;
+    font-weight: bold;
+    font-size: 1.1rem; /* Increased welcome message font size */
+}
+
+.user-dashboard-container .dashboard-header .welcome-message small {
+    font-weight: normal;
+    font-size: 1rem; /* Increased role display font size */
+    color: #6c757d;
+}
+
+/* Action ribbon styling */
+.user-dashboard-container .action-ribbon {
+    background-color: #f8f9fa;
+    padding: 1rem;
+    margin-bottom: 1.5rem;
+    border-radius: 0.5rem;
+    border: 1px solid #dee2e6;
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 1rem;
+}
+
+.user-dashboard-container .action-ribbon h2 {
+    margin: 0;
+    margin-right: 1.5rem;
+    font-size: 1.2rem;
+    color: #495057;
+}
+
+.user-dashboard-container .action-ribbon .button-group {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.75rem;
+}
+
+.user-dashboard-container .action-ribbon .action-button {
+    display: inline-block;
+    padding: 8px 12px;
+    background-color: #6c757d;
+    color: white;
+    text-decoration: none;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 0.9rem;
+    transition: background-color 0.2s;
+}
+
+.user-dashboard-container .action-ribbon .action-button:hover {
+    background-color: #5a6268;
+}
+
+.user-dashboard-container .action-ribbon .action-button.btn-create {
+    background-color: #5a58df;
+}
+
+.user-dashboard-container .action-ribbon .action-button.btn-create:hover {
+    background-color: #218838;
+}
+
+.user-dashboard-container .action-ribbon .action-button.btn-admin {
+    background-color: #6948b8;
+}
+
+.user-dashboard-container .action-ribbon .action-button.btn-admin:hover {
+    background-color: #5a6268;
+}
 
 .paf-list-section h2 {
     margin-top: 0;

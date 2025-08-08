@@ -7,7 +7,7 @@ import SignatureCanvas from 'react-signature-canvas'; // <<< 2. Import the compo
 
 import './PafApprovalPage.css'; // Create this CSS file
 
-const API_BASE_URL = 'https://10.72.14.19:3443/api';
+const API_BASE_URL = (process.env.REACT_APP_API_URL || 'https://10.72.14.19:3443') + '/api';
 
 function PafApprovalPage() {
     const { pafDbId } = useParams(); // Get pafDbId from URL
@@ -290,8 +290,7 @@ const canSubmit = () => {
             const response = await axios.post(`${API_BASE_URL}/pafs/${pafDbId}/approve`, payload);
 
             setSubmitMessage(response.data.message || "PAF Approved Successfully!");
-            // Optionally navigate away or disable form further
-            setTimeout(() => navigate('/dashboard-thank-you'), 3000); // Redirect to a thank you or dashboard
+            // Stay on current page - let user decide whether to navigate back to dashboard
 
         } catch (err) {
             setSubmitError(err.response?.data?.error || "Failed to submit approval. Please try again.");
@@ -326,7 +325,30 @@ const canSubmit = () => {
                 </div>
             )}
 
-            {submitMessage && <div className="message success form-message">{submitMessage}</div>}
+            {submitMessage && (
+                <div className="message success form-message">
+                    <p><strong>{submitMessage}</strong></p>
+                    <div style={{marginTop: '15px', textAlign: 'center'}}>
+                        <p>Thank you for approving this PAF! You can now:</p>
+                        <div style={{display: 'flex', gap: '10px', justifyContent: 'center', flexWrap: 'wrap'}}>
+                            <button 
+                                onClick={() => window.close()} 
+                                className="nav-button" 
+                                style={{backgroundColor: '#28a745', color: 'white', padding: '8px 16px', border: 'none', borderRadius: '4px', cursor: 'pointer'}}
+                            >
+                                Close Window
+                            </button>
+                            <button 
+                                onClick={() => window.location.href = '/'} 
+                                className="nav-button" 
+                                style={{backgroundColor: '#007bff', color: 'white', padding: '8px 16px', border: 'none', borderRadius: '4px', cursor: 'pointer'}}
+                            >
+                                Go to Dashboard
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
             {submitError && <div className="message error form-message">{submitError}</div>}
 
             {pafDetails && pafDetails.status === 'PENDING_LIST_OWNER_APPROVAL' && !submitMessage && (

@@ -99,23 +99,28 @@
 
 /* Styles for Navbar Links using NavLink */
 .app-navbar .nav-links .nav-link { /* General style for NavLink if you used this class */
-  color: #202e31;
+  color: #007bff; /* Changed to blue for better visibility */
   margin-left: 20px;
   text-decoration: none;
-  font-size: 1em;
-  padding: 8px 0; /* Add some padding for better click area and active state appearance */
+  font-size: 1.1em; /* Slightly larger font */
+  font-weight: 600; /* Bolder text */
+  padding: 8px 12px; /* Added horizontal padding for better appearance */
   border-bottom: 2px solid transparent; /* Prepare for active underline */
-  transition: color 0.2s ease-in-out, border-bottom-color 0.2s ease-in-out;
+  border-radius: 4px; /* Rounded corners */
+  transition: all 0.2s ease-in-out;
 }
 
 .app-navbar .nav-links .nav-link:hover {
-  color: #3498db;
+  color: #0056b3;
+  background-color: #f8f9fa;
+  border-bottom-color: #0056b3;
 }
 
 .app-navbar .nav-links .nav-link.active { /* Style for the active NavLink */
-  color: #3498db; /* Brighter blue for active */
-  font-weight: bold; /* Make active link bold */
-  border-bottom-color: #3498db; /* Underline for active link */
+  color: #0056b3; /* Darker blue for active */
+  font-weight: 700; /* Extra bold for active */
+  background-color: #e3f2fd; /* Light blue background */
+  border-bottom-color: #0056b3; /* Underline for active link */
 }
 
 
@@ -278,4 +283,14 @@
 /* Show the dropdown menu when hovering over the container */
 .nav-dropdown:hover .dropdown-content {
   display: block;
+}
+
+/* Version tag styling - inconspicuous */
+.nav-brand .version-tag {
+  font-size: 0.7rem;
+  opacity: 0.6;
+  margin-left: 0.5rem;
+  font-weight: normal;
+  color: rgba(255, 255, 255, 0.5);
+  vertical-align: super;
 }

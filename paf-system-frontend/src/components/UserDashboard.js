@@ -5,7 +5,7 @@ import axios from 'axios';
 import { Link, useNavigate } from 'react-router-dom'; // useNavigate for programmatic navigation
 import './UserDashboard.css';
 
-const API_BASE_URL = 'https://10.72.14.19:3443/api';
+const API_BASE_URL = (process.env.REACT_APP_API_URL || 'https://10.72.14.19:3443') + '/api';
 
 
 function UserDashboard({ currentUser }) { // currentUser is passed as a prop from App.js
@@ -130,67 +130,30 @@ function UserDashboard({ currentUser }) { // currentUser is passed as a prop fro
         <div className="user-dashboard-container">
             <div className="dashboard-header">
                 <h1>My PAF Dashboard</h1>
-                <p>Welcome, {currentUser.first_name || currentUser.email}!
-                           (Role: {currentUser.role}, User ID: {currentUser.id || 'N/A'})
-
-                </p>
+                
+                <div className="welcome-message">
+                    <p>
+                        Welcome, {currentUser.firstName || currentUser.first_name || currentUser.email}!
+                        <br />
+                        <small>(Role: {currentUser.role}, USPS License ID: {currentUser.uspsLicenseId || 'N/A'})</small>
+                    </p>
+                </div>
             </div>
 
             {error && <div className="message error">{error}</div>}
-<div className="button-container" style={{ marginTop: '15px' }}>
-          {/*
-            VVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVV
-            HERE IS THE <Link> COMPONENT FOR THE "INITIATE NEW PAF" BUTTON/LINK
-            VVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVV
-          */}
-          <Link to="/pafs/new" className="action-button create-paf-button" style={{
-            display: 'inline-block',
-            padding: '10px 15px',
-            backgroundColor: '#007bff', // Example primary button color
-            color: 'white',
-            textDecoration: 'none',
-            borderRadius: '4px',
-            marginRight: '10px'
-          }}>
-            + Initiate New PAF
-          </Link>
-
-          <Link 
-            to={`/profile/edit`} // <<< New route for editing the logged-in user's profile
-            className="action-button edit-profile-button" 
-style={{
-            display: 'inline-block',
-            padding: '10px 15px',
-            backgroundColor: '#6600ff', // Example primary button color
-            color: 'white',
-            textDecoration: 'none',
-            borderRadius: '4px',
-            marginRight: '10px'
-          }}>          
-            Edit My Profile
-          </Link>
-
-
-          {/*
-            AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
-            END OF THE <Link> COMPONENT
-            AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
-          */}
-
-          {/* You could add other links/buttons here, for example: */}
-          {/*
-          <Link to="/pafs/my-list" className="action-button view-pafs-button" style={{
-            display: 'inline-block',
-            padding: '10px 15px',
-            backgroundColor: '#6c757d', // Example secondary button color
-            color: 'white',
-            textDecoration: 'none',
-            borderRadius: '4px'
-          }}>
-            View My PAFs
-          </Link>
-          */}
-        </div>
+            
+            <div className="action-ribbon">
+                <h2>My Actions</h2>
+                <div className="button-group">
+                    <Link to="/pafs/new" className="action-button btn-create">
+                        + Initiate New PAF
+                    </Link>
+                    
+                    <Link to={`/profile/edit`} className="action-button btn-admin">          
+                        Edit My Profile
+                    </Link>
+                </div>
+            </div>
             <div className="paf-list-section">
                 <h2>My Associated PAFs</h2>
                 {loadingPafs ? (

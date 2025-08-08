@@ -5,7 +5,7 @@ import axios from 'axios';
 import AuthContext from '../context/AuthContext'; // To get loggedInUser for context or potential checks
 import './ViewPafDetails.css';
 
-const API_BASE_URL =  'https://10.72.14.19:3443';
+const API_BASE_URL = process.env.REACT_APP_API_URL || 'https://10.72.14.19:3443';
 
 function ViewPafDetails() {
   const { pafDbId } = useParams(); // Gets 'pafDbId' from the URL if your route is /pafs/view/:pafDbId
@@ -25,6 +25,7 @@ function ViewPafDetails() {
   const [showHistory, setShowHistory] = useState(false); // To toggle visibility
 
 const [isRenewing, setIsRenewing] = useState(false); // New state for renewal action
+const [isExporting, setIsExporting] = useState(false); // New state for export action
 
 
   useEffect(() => {
@@ -58,8 +59,8 @@ const [isRenewing, setIsRenewing] = useState(false); // New state for renewal ac
   }, [pafDbId]); // Re-fetch if pafDbId changes
 
   if (isLoading) return <div style={{padding: "20px"}}>Loading PAF details...</div>;
-  if (error) return <div style={{padding: "20px", color: "red"}}>Error: {error} <Link to={loggedInUser?.role === 'ADMIN' ? "/admin-dashboard" : "/user-dashboard"}>Go to Dashboard</Link></div>;
-  if (!pafDetails) return <div style={{padding: "20px"}}>PAF not found. <Link to={loggedInUser?.role === 'ADMIN' ? "/admin-dashboard" : "/user-dashboard"}>Go to Dashboard</Link></div>;
+  if (error) return <div style={{padding: "20px", color: "red"}}>Error: {error} <Link to={loggedInUser?.role === 'ADMIN' ? "/admin-dashboard" : "/user-dashboard"} className="back-to-dashboard-link">Go to Dashboard</Link></div>;
+  if (!pafDetails) return <div style={{padding: "20px"}}>PAF not found. <Link to={loggedInUser?.role === 'ADMIN' ? "/admin-dashboard" : "/user-dashboard"} className="back-to-dashboard-link">Go to Dashboard</Link></div>;
 
 
 
@@ -151,6 +152,34 @@ const handleGeneratePdf = () => {
     navigate('/pafs/new', { state: { initialPafData: pafDetails } });
   };
 
+  const handleExportPaf = async () => {
+    setIsExporting(true);
+    try {
+      console.log(`ViewPafDetails: Exporting PAF with ID: ${pafDbId}`);
+      const response = await axios.get(`${API_BASE_URL}/api/pafs/:pafId/migrate-sql`, {}, {
+        withCredentials: true,                            
+        responseType: 'blob'
+      });
+      
+      // Create a download link for the exported file
+      const url = window.URL.createObjectURL(new Blob([response.data]));
+      const link = document.createElement('a');
+      link.href = url;
+      link.setAttribute('download', `PAF_${pafDetails.fullPafId || pafDbId}_export.pdf`);
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      window.URL.revokeObjectURL(url);
+      
+      console.log("ViewPafDetails: PAF exported successfully");
+    } catch (err) {
+      console.error("ViewPafDetails: Error exporting PAF:", err.response?.data || err.message);
+      alert(`Error: ${err.response?.data?.message || "Failed to export PAF."}`);
+    } finally {
+      setIsExporting(false);
+    }
+  };
+
  // Helper to display PAF Type
   const getPafTypeDescription = (type) => {
     switch(type) {
@@ -183,6 +212,12 @@ const handleGeneratePdf = () => {
          <button className="action-button history-button" onClick={handleFetchHistory} disabled={isLoadingHistory}>
           {isLoadingHistory ? 'Loading History...' : (showHistory ? 'Hide History' : 'Show PAF History')}
         </button>
+
+        {pafDetails?.status === 'LICENSEE_VALIDATED' && (
+          <button className="action-button export-button" onClick={handleExportPaf} disabled={isExporting}>
+            {isExporting ? 'Exporting...' : 'Export PAF'}
+          </button>
+        )}
    
  
  
@@ -211,13 +246,16 @@ const handleGeneratePdf = () => {
 
 
       <h1>PAF Details: {pafDetails.fullPafId || 'N/A'} (ID: {pafDetails.listOwnerId || 'N/A'})</h1>
-      <Link to={loggedInUser?.role === 'ADMIN' ? "/admin-dashboard" : "/user-dashboard"}>Back to Dashboard</Link>
+      <Link to={loggedInUser?.role === 'ADMIN' ? "/admin-dashboard" : "/user-dashboard"} className="back-to-dashboard-link">Back to Dashboard</Link>
       
       <div style={{marginTop: "20px"}}>
         {/* Display all the PAF details from pafDetails object */}
         <p><strong>Status:</strong> {pafDetails.status || 'N/A'}</p>
         <p><strong>List Name:</strong> {pafDetails.listName || 'N/A'}</p>
         <p><strong>Frequency:</strong> {pafDetails.frequency || 'N/A'}</p>
+        {pafDetails.customId && (
+          <p><strong>Custom ID:</strong> {pafDetails.customId}</p>
+        )}
 
         <h3>List Owner Information</h3>
         <p><strong>Company:</strong> {pafDetails.companyName || 'N/A'}</p>

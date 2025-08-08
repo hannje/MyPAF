@@ -143,4 +143,72 @@ body {
 .submit-button:hover:not(:disabled) {
   background-color: #0056b3;
 }
+  /* Enhanced PAF feedback styling */
+.paf-feedback-container {
+  position: fixed;
+  bottom: 20px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 1000;
+  max-width: 600px;
+  width: 90%;
+  animation: slideInFromBottom 0.5s ease-out;
+}
+
+@keyframes slideInFromBottom {
+  from {
+    opacity: 0;
+    transform: translateX(-50%) translateY(50px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(-50%) translateY(0);
+  }
+}
+
+.paf-success-message {
+  background-color: #d4edda;
+  color: #155724;
+  border: 2px solid #c3e6cb;
+  padding: 16px 20px;
+  border-radius: 8px;
+  font-size: 1rem;
+  box-shadow: 0 4px 15px rgba(0, 0, 0, 0.15);
+  text-align: center;
+}
+
+.paf-error-message {
+  background-color: #f8d7da;
+  color: #721c24;
+  border: 2px solid #f5c6cb;
+  padding: 16px 20px;
+  border-radius: 8px;
+  font-size: 1rem;
+  box-shadow: 0 4px 15px rgba(0, 0, 0, 0.15);
+  text-align: center;
+}
+
+.feedback-actions {
+  margin-top: 8px;
+  padding-top: 8px;
+  border-top: 1px solid rgba(21, 87, 36, 0.2);
+}
+
+.feedback-actions small {
+  font-style: italic;
+  opacity: 0.8;
+}
+
+/* Update button styling for submitted state */
+.submit-button.large-button:disabled {
+  background-color: #28a745;
+  cursor: not-allowed;
+  opacity: 0.7;
+}
+
+/* Ensure the form container has enough bottom padding when feedback appears */
+.form-container.paf-creation-form {
+  padding-bottom: 120px;
+}
+
   /* Ensure your component-specific CSS files are also created and linked */

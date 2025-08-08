@@ -10,7 +10,7 @@ import './CreatePafform.css'; // Create a CSS file for this potentially large fo
 
 
 //const API_BASE_URL = process.env.REACT_APP_API_URL || 'http://10.72.14.19:3001';
-const API_BASE_URL = 'https://10.72.14.19:3443';
+const API_BASE_URL = process.env.REACT_APP_API_URL || 'https://10.72.14.19:3443';
 
 function CreatePafForm({ onSuccess }) {
   const { adminUser: loggedInUser } = useContext(AuthContext);
@@ -78,20 +78,14 @@ function CreatePafForm({ onSuccess }) {
   const [signerName, setSignerName] = useState(initialData.signerName || '');
   const [signerTitle, setSignerTitle] = useState(initialData.signerTitle || '');
   const [signerEmail, setSignerEmail] = useState(initialData.signerEmail || '');
-  // Do not pre-fill dateSigned, as a new signature implies a new date
-  const [dateSigned, setDateSigned] = useState('');
 
   const [listName, setListName] = useState(initialData.listName || '');
   const [frequency, setFrequency] = useState(initialData.frequency || '');
   const [jurisdiction, setJurisdiction] = useState(initialData.jurisdiction || 'US');
+  const [customId, setCustomId] = useState(initialData.customId || '');
   const [notes, setNotes] = useState(initialData.notes || '');
 
-  // Agent details can also be pre-filled
-  //const [agentId, setAgentId] = useState(initialData.agentId || '');
-  //const [agentSignedDate, setAgentSignedDate] = useState(''); // Don't pre-fill agent signature date
-
   const [agentId, setAgentId] = useState('');
-  const [agentSignedDate, setAgentSignedDate] = useState('');
 
   // VVVVVV NEW STATE FOR AGENT DROPDOWN VVVVVV
   const [agentList, setAgentList] = useState([]);
@@ -175,14 +169,15 @@ useEffect(() => {
   const [error, setError] = useState('');
   const [message, setMessage] = useState('');
   const [isLoading, setIsLoading] = useState(false);
+  const [isSubmitted, setIsSubmitted] = useState(false);
 
   const clearForm = () => {
     setListOwnerSic(''); setCompanyName(''); setParentCompany(''); setAlternateCompanyName('');
     setStreetAddress(''); setCity(''); setStateVal(''); setZipCode(''); setZip4('');
     setTelephone(''); setFaxNumber(''); setUrbanization(''); setListOwnerCrid(''); setMailerId('');
-    setSignerName(''); setSignerTitle(''); setSignerEmail(''); setDateSigned('');
-    setListName(''); setFrequency(''); setNotes('');
-    setAgentId(''); setAgentSignedDate('');
+    setSignerName(''); setSignerTitle(''); setSignerEmail('');
+    setListName(''); setFrequency(''); setCustomId(''); setNotes('');
+    setAgentId('');
   };
 
   const handleSubmit = async (event) => {
@@ -205,12 +200,7 @@ useEffect(() => {
       return;
     }
 
-    // Conditionally check for dateSigned ONLY in create mode
-    if (!isEditMode && !dateSigned) {
-      setError('Date Signed is required when creating a new PAF.');
-      setIsLoading(false);
-      return;
-    }
+    // Date signed is no longer required - it will be collected during approval process
 
     const pafData = {
       // The backend will determine/generate 'list_owner_id'
@@ -220,11 +210,11 @@ useEffect(() => {
       listOwnerSic, companyName, parentCompany, alternateCompanyName,
       streetAddress, city, state, zipCode, zip4, telephone, faxNumber, urbanization,
       listOwnerCrid, mailerId,
-      signerName, signerTitle, signerEmail, dateSigned,
-      listName, frequency, notes,
+      signerName, signerTitle, signerEmail,
+      // dateSigned and agentSignedDate will be set during approval process
+      listName, frequency, customId, notes,
       jurisdiction: jurisdiction, // <<< ADD jurisdiction TO PAYLOAD
       agentId: agentId || null, // Send null if empty
-      agentSignedDate: agentSignedDate || null, // Send null if empty
     };
 
    try {
@@ -243,6 +233,7 @@ useEffect(() => {
         console.log(`CreatePafForm (Create Mode): Submitting POST to ${url}`, pafData);
         response = await axios.post(url, pafData, { withCredentials: true });
         setMessage(response.data.message || 'PAF created successfully!');
+        setIsSubmitted(true); // Mark as submitted to disable the button
         clearForm(); // Only clear the form on successful *creation*
       }
 
@@ -310,28 +301,11 @@ useEffect(() => {
           <div className="form-group"><label>Signer Full Name:</label><input type="text" value={signerName} onChange={(e) => setSignerName(e.target.value)} required /></div>
           <div className="form-group"><label>Signer Title:</label><input type="text" value={signerTitle} onChange={(e) => setSignerTitle(e.target.value)} required /></div>
           <div className="form-group"><label>Signer Email:</label><input type="email" value={signerEmail} onChange={(e) => setSignerEmail(e.target.value)} /></div>
-
-            
-          {/* VVVVVV THE CHANGE IS HERE VVVVVV */}
           <div className="form-group">
-            <label htmlFor="dateSigned">Date Signed by List Owner:</label>
-            <input 
-              type="date" 
-              id="dateSigned" 
-              value={dateSigned} 
-              onChange={(e) => setDateSigned(e.target.value)} 
-              required 
-              disabled={isEditMode} // <<< DISABLE THE INPUT IN EDIT MODE
-            />
-            {isEditMode && ( // <<< Optionally, show a message explaining why it's disabled
-              <small style={{display: 'block', marginTop: '5px'}}>
-                The signed date cannot be changed during modification. Use the "Renew PAF" function to update the signature date.
-              </small>
-            )}
+            <small style={{color: '#6c757d', fontStyle: 'italic'}}>
+              Note: The List Owner signature will be collected during the approval process.
+            </small>
           </div>
-
- 
-
         </fieldset>
 
         <fieldset>
@@ -358,6 +332,19 @@ useEffect(() => {
             </select>
           </div>
 
+          <div className="form-group">
+            <label htmlFor="paf-customId">Custom ID (Optional):</label>
+            <input 
+              type="text" 
+              id="paf-customId" 
+              value={customId} 
+              onChange={(e) => setCustomId(e.target.value)} 
+              placeholder="Enter a custom identifier for this PAF"
+            />
+            <small style={{color: '#6c757d', fontStyle: 'italic', display: 'block', marginTop: '5px'}}>
+              Optional field for your own tracking or reference purposes.
+            </small>
+          </div>
 
           <div className="form-group"><label>Notes:</label><textarea value={notes} onChange={(e) => setNotes(e.target.value)} rows="3"></textarea></div>
         </fieldset>
@@ -390,21 +377,46 @@ useEffect(() => {
           </div>
 
 
-          <div className="form-group"><label>Date Signed by Agent:</label><input type="date" value={agentSignedDate} onChange={(e) => setAgentSignedDate(e.target.value)} /></div>
+          <div className="form-group">
+            <small style={{color: '#6c757d', fontStyle: 'italic'}}>
+              Note: If an agent is selected, their signature will be collected during the approval process.
+            </small>
+          </div>
         </fieldset>
 
        <div className="form-action-center"> {/* New wrapper div for centering */}
-          <button type="submit" className="submit-button large-button" disabled={isLoading}>
+          <button type="submit" className="submit-button large-button" disabled={isLoading || (isSubmitted && !isEditMode)}>
             {isLoading 
               ? (isEditMode ? 'Saving Changes...' : 'Submitting PAF...') 
+              : isSubmitted && !isEditMode
+              ? 'PAF Successfully Submitted'
               : (isEditMode ? 'Save PAF Changes' : 'Submit New PAF')
             }
           </button>
         </div>
 
       </form>
-      {message && <p className="success-message" style={{ color: 'green', marginTop: '10px' }}>{message}</p>}
-      {error && <p className="error-message" style={{ color: 'red', marginTop: '10px' }}>{error}</p>}
+      
+      {/* Enhanced feedback section at bottom of page */}
+      {(message || error) && (
+        <div className="paf-feedback-container">
+          {message && (
+            <div className="paf-success-message" role="alert" aria-live="polite">
+              <strong>✓ Success:</strong> {message}
+              {isSubmitted && !isEditMode && (
+                <div className="feedback-actions">
+                  <small>Your PAF has been submitted and is now pending review.</small>
+                </div>
+              )}
+            </div>
+          )}
+          {error && (
+            <div className="paf-error-message" role="alert" aria-live="polite">
+              <strong>✗ Error:</strong> {error}
+            </div>
+          )}
+        </div>
+      )}
     </div>
   );
 }

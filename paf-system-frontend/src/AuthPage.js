@@ -13,6 +13,11 @@ function AuthPage() { // No onLoginSuccess prop here
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
+  
+  // Debug: Log when error state changes
+  React.useEffect(() => {
+    console.log('AuthPage: Error state changed to:', error);
+  }, [error]);
   const [isLoading, setIsLoading] = useState(false);
 
   // Use the context to get the login function
@@ -23,7 +28,7 @@ function AuthPage() { // No onLoginSuccess prop here
   const navigate = useNavigate();
 
   const handleSubmit = async (event) => {
- //   console.log('AuthPage: handleSubmit function CALLED.');
+    console.log('AuthPage: handleSubmit function CALLED.');
     event.preventDefault();
     setError('');
     setIsLoading(true);
@@ -63,24 +68,49 @@ function AuthPage() { // No onLoginSuccess prop here
         setError('Login completed but user information is incomplete.');
       }
     } catch (err) {
-//      setAdminUser(null);
-      setIsLoading(false); // It might be setting this to false 
+      // Don't set isLoading here - do it in finally block 
       console.log('AuthPage handleSubmit: Error during login process:', err);
-      // This catch block will catch errors thrown by authContext.login
-      // or network errors from axios if not caught within authContext.login
-      console.error('AuthPage handleSubmit: Error during login process:', err.response?.data?.message || err.message || err);
+      console.error('AuthPage handleSubmit: Full error object:', err);
+      console.error('AuthPage handleSubmit: Error response:', err.response);
+      console.error('AuthPage handleSubmit: Error message:', err.message);
      
-      const errorMessage = err.response?.data?.message || 'Invalid email or password. Please try again.';
+      let errorMessage = 'Invalid email or password. Please try again.';
       
-      setError(errorMessage); // <<< Set the error state with 
-     // alert(`Login Failed: ${errorMessage}`); 
-     
- 
-      console.error('AuthPage errormsg set:', errorMessage) ;
+      if (err.response) {
+        switch (err.response.status) {
+          case 401:
+            errorMessage = 'Invalid email or password. Please check your credentials and try again.';
+            break;
+          case 403:
+            errorMessage = 'Account access is restricted. Please contact support.';
+            break;
+          case 429:
+            errorMessage = 'Too many login attempts. Please wait a few minutes before trying again.';
+            break;
+          case 500:
+            errorMessage = 'Server error occurred. Please try again later.';
+            break;
+          default:
+            errorMessage = err.response.data?.message || errorMessage;
+        }
+      } else if (err.request) {
+        errorMessage = 'Unable to connect to the server. Please check your connection and try again.';
+      } else if (err.message) {
+        errorMessage = err.message.includes('invalid') || err.message.includes('password') || err.message.includes('credentials') 
+          ? 'Invalid email or password. Please check your credentials and try again.'
+          : err.message;
+      }
+      
+      console.error('AuthPage: Setting error message:', errorMessage);
+      setError(errorMessage);
+      
+      // Force a re-render to make sure the error is displayed
+      setTimeout(() => {
+        console.error('AuthPage: Current error state after setTimeout:', errorMessage);
+      }, 100);
 
  
  
-      //  setError(err.response?.data?.message || err.message || 'Login failed. Please check credentials.');
     } finally {
       setIsLoading(false);
     }
@@ -116,10 +146,12 @@ function AuthPage() { // No onLoginSuccess prop here
  
       </form>
       {error && (
-          <div className="error-message" role="alert">
-            {error}
+          <div className="error-message" role="alert" aria-live="polite">
+            <strong>Login Failed:</strong> {error}
           </div>
         )}
+        {/* Debug: Show error state */}
+        {console.log('AuthPage render: current error state:', error)}
 
     </div>
   );

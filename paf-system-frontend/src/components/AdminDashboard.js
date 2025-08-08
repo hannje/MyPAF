@@ -16,7 +16,7 @@ import PafTableRow from './PafTableRow';
 
 
 
-const API_BASE_URL = 'https://10.72.14.19:3443/api';
+const API_BASE_URL = (process.env.REACT_APP_API_URL || 'https://10.72.14.19:3443') + '/api';
 // IMPORTANT: Replace '1' (or whatever value you have) with the actual party_id of
 // your Licensee organization from your 'parties' table.
 // This ID is used to determine if the admin's organization is the List Owner of a PAF.
@@ -53,6 +53,8 @@ function AdminDashboard({ currentUser }) {
 
     const [exporting, setExporting] = useState(false); 
     const [exportMessage, setExportMessage] = useState('');
+    const [migrating, setMigrating] = useState(false);
+    const [migrateMessage, setMigrateMessage] = useState('');
 
      const [isLoadingUsers, setIsLoadingUsers] = useState(false);
      const [errorUsers, setErrorUsers] = useState('');
@@ -233,7 +235,7 @@ function AdminDashboard({ currentUser }) {
      if (!window.confirm(`Are you sure you want to self-approve PAF ID: ${pafIdToApprove}?`)) return;
     
     try {
-      const url = `https://10.72.14.19:3443/api/pafs/${pafIdToApprove}/validate-licensee`;
+      const url = `${API_BASE_URL}/pafs/${pafIdToApprove}/validate-licensee`;
       const response = await axios.put(url, { validationNotes: "Self-approved by admin creator." }, { withCredentials: true });
       alert("PAF approved successfully!");
       setAllPafs(prevPafs => prevPafs.map(paf => paf.id === pafIdToApprove ? response.data.paf : paf));
@@ -443,6 +445,41 @@ const handleLicenseeValidate = async (pafDbId, pafCurrentStatus) => {
       // to have more control over the success message.
     }, 50); // A small delay of 50ms is usually enough for the UI to update.
   };
+
+  // --- NEW HANDLER FUNCTION FOR MIGRATE PAFs ---
+  const handleMigratePafs = async () => {
+    if (!window.confirm('Are you sure you want to migrate PAFs? This operation may take some time.')) {
+      return;
+    }
+
+    console.log("handleMigratePafs called");
+    
+    setMigrating(true);
+    setMigrateMessage('Starting PAF migration, please wait...');
+
+    try {
+      console.log('Migrating: Calling POST /api/pafs/migrate');
+      const response = await axios.post(`${API_BASE_URL}/pafs/migrate`, {}, {
+        withCredentials: true,
+      });
+
+      console.log('Migration response:', response.data);
+      setMigrateMessage(response.data.message || 'PAF migration completed successfully.');
+      
+      // Optionally refresh the PAF list after migration
+      setTimeout(() => {
+        window.location.reload();
+      }, 2000);
+
+    } catch (error) {
+      console.error('Error migrating PAFs:', error);
+      const errorMessage = error.response?.data?.message || 'Failed to migrate PAFs. Please try again.';
+      setMigrateMessage(''); // Clear loading message on error
+      alert(`Migration Error: ${errorMessage}`);
+    } finally {
+      setMigrating(false);
+    }
+  };
  
     console.log("AdminDashboard Render: currentUser:", currentUser);
     return (
@@ -495,11 +532,26 @@ const handleLicenseeValidate = async (pafDbId, pafCurrentStatus) => {
                     >
                         {exporting ? 'Generating...' : 'Export PAFs'}
                     </button>
+
+                    {/* --- Migrate PAFs Button --- */}
+                    <button 
+                        onClick={handleMigratePafs}
+                        disabled={migrating}
+                        className="action-button btn-migrate"
+                    >
+                        {migrating ? 'Migrating...' : 'Migrate PAFs'}
+                    </button>
                 </div>
                 {/* --- Export Feedback Message --- */}
                 {exportMessage && (
                     <div className="export-feedback">
                         {exportMessage}
+                    </div>
+                )}
+                {/* --- Migrate Feedback Message --- */}
+                {migrateMessage && (
+                    <div className="migrate-feedback">
+                        {migrateMessage}
                     </div>
                 )}
             </div>

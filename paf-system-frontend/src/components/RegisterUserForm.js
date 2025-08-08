@@ -2,7 +2,7 @@ import React, { useState,useEffect } from 'react'; // Removed useContext for now
 import axios from 'axios';
 import './RegisterUserForm.css'; // Or your shared form CSS
 
-const API_BASE_URL = 'https://10.72.14.19:3443';
+const API_BASE_URL = process.env.REACT_APP_API_URL || 'https://10.72.14.19:3443';
 
 function RegisterUserForm({ onUserCreationSuccess }) {
   // User's own details

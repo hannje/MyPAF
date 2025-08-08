@@ -1,6 +1,22 @@
 // paf-system-backend-node/server.js
 
 require('dotenv').config(); // Load environment variables from .env file
+
+// Enhanced logging with timestamps
+const originalConsoleLog = console.log;
+const originalConsoleError = console.error;
+
+function getTimestamp() {
+    return new Date().toISOString().replace('T', ' ').substring(0, 19);
+}
+
+console.log = function(...args) {
+    originalConsoleLog(`[${getTimestamp()}]`, ...args);
+};
+
+console.error = function(...args) {
+    originalConsoleError(`[${getTimestamp()}] ERROR:`, ...args);
+};
 const express = require('express');
 const mysql = require('mysql2/promise'); // Using the promise-based version
 const bcrypt = require('bcryptjs');
@@ -246,8 +262,9 @@ app.get('/api/users/agents', ensureAuthenticated, async (req, res) => {
     // Format the data for the frontend dropdown
     const formattedAgents = agentUsers.map(user => ({
       id: user.id,
+      userId: formatUserId(user.id), // Add userID for frontend reference
       // Create a display name for the dropdown label
-      name: `${user.first_name || ''} ${user.last_name || ''} (ID: ${user.id})`.trim()
+      name: `${user.first_name || ''} ${user.last_name || ''} (UserID: ${formatUserId(user.id)})`.trim()
     }));
 
 
@@ -378,8 +395,10 @@ app.post('/api/admins/register-admin', /* authenticateAdmin, */ async (req, res)
     }
     
     const newAdminData = newAdminRows[0];
-    // Map to camelCase for frontend if preferred, e.g., newAdminData.firstName = newAdminData.first_name
-    // For brevity, sending as is from DB (snake_case)
+    
+    // Generate userID using the same format as PAF IDs
+    const generatedUserId = formatUserId(newAdminId);
+    newAdminData.userId = generatedUserId; // Add userID to the response
     
     res.status(201).json({ message: 'Admin created successfully', admin: newAdminData });
 
@@ -604,7 +623,7 @@ app.post('/api/pafsxxx/create', async (req, res) => {
         let initialStatus = jurisdiction === 'FOREIGN' ? 'PENDING_LOI_FOREIGN_ONLY' : 'PENDING_LIST_OWNER_APPROVAL';
         const dateIssued = new Date();
 
-                const pafSql = `
+        const pafSql = `
             INSERT INTO pafs (
                 list_owner_id, licensee_id, list_administrator_id, paf_type, jurisdiction,
                 current_status, is_multiple_lists, date_issued,
@@ -945,6 +964,8 @@ app.post('/api/auth/login', async (req, res) => {
 // mypafreact/paf-system-backend-node/server.js (snippet for user creation by admin)
 
 function formatUniqueIdForUspsId(id) {
+  // DEPRECATED: This function is no longer used for USPS ID generation.
+  // USPS ID generation now uses the formatted userID (PAF_PREFIX + padded ID) directly.
   // The spec says bytes 11-16 are the UNIQUE ID (6 bytes).
   // We will pad the user's auto-incremented ID to 6 digits.
   return String(id).padStart(6, '0');
@@ -1036,9 +1057,13 @@ app.post('/api/users/create-by-admin', authenticateAdmin, async (req, res) => {
 
     console.log(`Backend: /api/users/create-by-admin - New user created with ID: ${newUserId}`);
 
+    // Generate userID using PAF_PREFIX format first
+    const generatedUserId = formatUserId(newUserId);
+    console.log(`Backend: Generated userID for new user: ${generatedUserId}`);
+
     const platformId = (creatingAdminLic || '    ').padEnd(4, ' '); // Bytes 1-4: From creating admin's scope
     const naicsCode = (sic || '      ').padEnd(6, ' '); // Bytes 5-10: Use the NAICS code provided in the form for this user
-    const uniqueId = formatUniqueIdForUspsId(newUserId).padEnd(6, ' '); // Bytes 11-16: Based on the NEW user's ID
+    const uniqueId = generatedUserId.padEnd(6, ' '); // Bytes 11-16: Based on the NEW user's userID (not raw database ID)
 
     const generatedUspsId = `${platformId}${naicsCode}${uniqueId}`.substring(0, 16);
     console.log(`Generated USPS ID for new user ${newUserId}: "${generatedUspsId}"`);
@@ -1061,7 +1086,12 @@ app.post('/api/users/create-by-admin', authenticateAdmin, async (req, res) => {
         'SELECT id, first_name, last_name, email, role,broker_list_admin, licensee_name, street_address, city, state, zip_code, phone_number, created_by_admin_id, usps_license_id, created_at FROM users WHERE id = ?',
         [newUserId]
     );
-    res.status(201).json({ message: 'User created successfully', user: newUserRows[0] });
+    
+    // generatedUserId was already created above during USPS ID generation
+    const userData = newUserRows[0];
+    userData.userId = generatedUserId; // Add userID to the response
+    
+    res.status(201).json({ message: 'User created successfully', user: userData });
 
  //   console.log(`Backend: /api/users/create-by-admin - User creation successful, user: ${newUserRows}`);
 
@@ -1167,6 +1197,7 @@ app.get('/api/dashboard/users', async (req, res) => {
     // Map to camelCase and desired frontend structure if necessary
     const formattedUsers = usersCreatedByAdmin.map(user => ({
         id: user.id,
+        userId: formatUserId(user.id), // Add userID for frontend reference
         firstName: user.first_name,
         lastName: user.last_name,
         email: user.email,
@@ -1362,7 +1393,15 @@ app.get('/api/pafs/my-scope', ensureAuthenticated, async (req, res) => {
 // POST /api/pafs - Create a new PAF
 
 function formatPafListOwnerId(id) {
-  return String(id).padStart(6, '0'); // Example: 1 -> "000001", 123 -> "000123"
+  const pafPrefix = process.env.PAF_PREFIX || 'AN';
+  const paddedId = String(id).padStart(4, '0'); // 4-digit padded ID
+  return `${pafPrefix}${paddedId}`; // Example: "AN0001", "AN0123"
+}
+
+function formatUserId(id) {
+  const pafPrefix = process.env.PAF_PREFIX || 'AN';
+  const paddedId = String(id).padStart(6, '0'); // 6-digit padded ID for users
+  return `${pafPrefix}${paddedId}`; // Example: "AN000001", "AN000123"
 }
 
 app.post('/api/pafs', ensureAuthenticated, async (req, res) => {
@@ -1372,15 +1411,15 @@ app.post('/api/pafs', ensureAuthenticated, async (req, res) => {
     streetAddress, city, state, zipCode, zip4, telephone, faxNumber, urbanization,
     listOwnerCrid, mailerId,
     signerName, signerTitle, signerEmail, dateSigned,
-    listName, frequency, notes,
+    listName, frequency, notes, customId,
     agentId, agentSignedDate,jurisdiction
   } = req.body;
 
   console.log(`Backend /api/pafs: Create PAF request by user ID ${loggedInUser.id}`);
 
   // --- Basic Validation --- (as before)
-  if (!companyName || !listName || !signerName || !signerTitle || !dateSigned) {
-    return res.status(400).json({ message: 'Company Name, List Name, Signer Name, Signer Title, and Date Signed are required.' });
+  if (!companyName || !listName) {
+    return res.status(400).json({ message: 'Company Name and List Name are required.' });
   }
 
 
@@ -1437,34 +1476,61 @@ app.post('/api/pafs', ensureAuthenticated, async (req, res) => {
 
 
     // --- Step 1: Insert PAF record WITHOUT list_owner_id initially ---
-    const insertPafQuery = `
-      INSERT INTO pafs (
+    // Build INSERT dynamically based on whether date_signed is provided
+    let insertColumns, insertValues, insertParams;
+    
+    if (dateSigned) {
+      // Include date_signed when provided
+      insertColumns = `
         licensee_id, created_by_user_id,
         list_owner_sic, company_name, parent_company, alternate_company_name,
         street_address, city, state, zip_code, zip4, telephone, fax_number, urbanization,
         list_owner_crid, mailer_id,
         signer_name, signer_title, signer_email, date_signed,
-        list_name, frequency, notes,
+        list_name, frequency, notes, CustomID,
         agent_id, agent_signed_date,
         status,jurisdiction,paf_type,
-         created_at, updated_at
-        -- list_owner_id is omitted here
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,?, ?, NOW(), NOW());
-    `;
+         created_at, updated_at`;
+      insertValues = `?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW(), NOW()`;
+      insertParams = [
+        licenseeIdForPaf, createdByUserId,
+        listOwnerSic || null, companyName, parentCompany || null, alternateCompanyName || null,
+        streetAddress || null, city || null, state || null, zipCode || null, zip4 || null,
+        telephone || null, faxNumber || null, urbanization || null,
+        listOwnerCrid || null, mailerId || null,
+        signerName || null, signerTitle || null, signerEmail || null, dateSigned,
+        listName, frequency || null, notes || null, customId || null,
+        agentId || null, agentSignedDate || null,
+        initialStatus, jurisdiction, 'I'
+      ];
+    } else {
+      // Exclude date_signed when not provided
+      insertColumns = `
+        licensee_id, created_by_user_id,
+        list_owner_sic, company_name, parent_company, alternate_company_name,
+        street_address, city, state, zip_code, zip4, telephone, fax_number, urbanization,
+        list_owner_crid, mailer_id,
+        signer_name, signer_title, signer_email,
+        list_name, frequency, notes, CustomID,
+        agent_id, agent_signed_date,
+        status,jurisdiction,paf_type,
+         created_at, updated_at`;
+      insertValues = `?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW(), NOW()`;
+      insertParams = [
+        licenseeIdForPaf, createdByUserId,
+        listOwnerSic || null, companyName, parentCompany || null, alternateCompanyName || null,
+        streetAddress || null, city || null, state || null, zipCode || null, zip4 || null,
+        telephone || null, faxNumber || null, urbanization || null,
+        listOwnerCrid || null, mailerId || null,
+        signerName || null, signerTitle || null, signerEmail || null,
+        listName, frequency || null, notes || null, customId || null,
+        agentId || null, agentSignedDate || null,
+        initialStatus, jurisdiction, 'I'
+      ];
+    }
 
-    const [result] = await connection.execute(insertPafQuery, [
-      licenseeIdForPaf, createdByUserId,
-      listOwnerSic || null, companyName, parentCompany || null, alternateCompanyName || null,
-      streetAddress || null, city || null, state || null, zipCode || null, zip4 || null,
-      telephone || null, faxNumber || null, urbanization || null,
-      listOwnerCrid || null, mailerId || null,
-      signerName, signerTitle, signerEmail || null, dateSigned,
-      listName, frequency || null, notes || null,
-      agentId || null, agentSignedDate || null,
-      initialStatus,
-//      'PENDING_LIST_OWNER_APPROVAL',
-      jurisdiction,'I' // Default status
-    ]);
+    const insertPafQuery = `INSERT INTO pafs (${insertColumns}) VALUES (${insertValues});`;
+    const [result] = await connection.execute(insertPafQuery, insertParams);
 
     const newPafRecordId = result.insertId; // This is the auto-incremented 'id'
 
@@ -1502,7 +1568,7 @@ app.post('/api/pafs', ensureAuthenticated, async (req, res) => {
       
       // Send email asynchronously (fire and forget)
       sendEmail(agentUser.email, subject, textBody, htmlBody)
-        .then(() => console.log(`Approval notification sent to agent ${agentUser.email} for new PAF ${newPafId}`))
+        .then(() => console.log(`Approval notification sent to agent ${agentUser.email} for new PAF ${newPafRecordId}`))
         .catch(emailError => console.error(`Failed to send approval notification to agent ${agentUser.email}:`, emailError));
     }
 
@@ -3106,6 +3172,9 @@ app.get('/api/users/:userId', ensureAuthenticated, async (req, res) => {
         const camelCaseKey = key.replace(/_([a-z])/g, (match, letter) => letter.toUpperCase());
         formattedUser[camelCaseKey] = userToEdit[key];
     }
+    
+    // Generate userID using the same format as PAF IDs
+    formattedUser.userId = formatUserId(userToEdit.id);
 
     res.json(formattedUser);
 
@@ -3678,6 +3747,133 @@ app.put('/api/pafs/:pafId/agent-approve', ensureAuthenticated, async (req, res) 
     if (connection) { try { await connection.rollback(); } catch(e) {} }
     console.error(`Error during agent approval for PAF ${pafIdToApprove}:`, error);
     res.status(500).json({ message: 'Server error during agent approval.' });
+  } finally {
+    if (connection) connection.release();
+  }
+});
+
+
+// Helper function to format strings for SQL: escape quotes and pad/truncate to a fixed length
+const formatSqlChar = (str, length) => {
+  if (str === null || str === undefined) {
+    return 'NULL';
+  }
+  let sanitized = String(str).replace(/'/g, "''"); // Escape single quotes
+  if (sanitized.length > length) {
+    sanitized = sanitized.substring(0, length); // Truncate if too long
+  }
+  return `'${sanitized}'`; // Enclose in single quotes
+};
+
+// Helper function to format dates into MMDDYYYY string
+const formatDateToMMDDYYYY = (dateString) => {
+    if (!dateString) return 'NULL';
+    try {
+        const date = new Date(dateString + 'T00:00:00Z'); // Treat as UTC date
+        if (isNaN(date.getTime())) return 'NULL';
+        const month = String(date.getUTCMonth() + 1).padStart(2, '0');
+        const day = String(date.getUTCDate()).padStart(2, '0');
+        const year = date.getUTCFullYear();
+        return `'${month}${day}${year}'`;
+    } catch (e) {
+        return 'NULL';
+    }
+};
+
+// Helper function to format numbers (like phone/fax)
+const formatSqlNumericChar = (str, length) => {
+    if (str === null || str === undefined) {
+        return 'NULL';
+    }
+    // Remove all non-digit characters
+    let digitsOnly = String(str).replace(/\D/g, '');
+    if (digitsOnly.length > length) {
+        digitsOnly = digitsOnly.substring(0, length); // Truncate
+    }
+    return `'${digitsOnly}'`;
+};
+
+
+// --- NEW ENDPOINT: GET /api/pafs/:pafId/migrate-sql ---
+app.get('/api/pafs/:pafId/migrate-sql', authenticateAdmin, async (req, res) => {
+  const pafIdToMigrate = parseInt(req.params.pafId, 10);
+  console.log(`Backend /api/pafs/${pafIdToMigrate}/migrate-sql: Request by admin ID ${req.session.user.id}`);
+
+  if (isNaN(pafIdToMigrate)) {
+    return res.status(400).json({ message: 'Invalid PAF ID format.' });
+  }
+
+  let connection;
+  try {
+    connection = await dbPool.getConnection();
+
+    // Fetch the PAF data, including related licensee and agent info
+    const query = `
+      SELECT 
+        p.*,
+        u_licensee.usps_license_id AS licensee_platform_id,
+        u_agent.id AS agent_user_id,
+        u_agent.usps_id AS agent_usps_id,
+        u_agent.sic AS agent_sic
+      FROM pafs p
+      LEFT JOIN users u_licensee ON p.licensee_id = u_licensee.id
+      LEFT JOIN users u_agent ON p.agent_id = u_agent.id
+      WHERE p.id = ?;
+    `;
+    const [pafRows] = await connection.execute(query, [pafIdToMigrate]);
+
+    if (pafRows.length === 0) {
+      return res.status(404).json({ message: 'PAF not found.' });
+    }
+    const pafData = pafRows[0];
+    
+    // --- Construct the SQL INSERT Statement ---
+    // Mapping your current 'pafs' table fields to the target table fields
+    const targetTableName = 'your_target_paf_table_name'; // <<< REPLACE THIS
+
+    const sqlStatement = `
+INSERT INTO ${targetTableName} (
+  licensee_id, list_owner_sic, freq_proc, list_owner_id, company, 
+  address, city, state, zip, zip4, telephone, sign_name, 
+  sign_title, sign_customer_date, paf_type, list_name, postal_id, 
+  parent_company, alt_company, broker_id, sign_broker_date, 
+  fax, email, urbanization, list_owner_crid
+) VALUES (
+  ${formatSqlChar(pafData.licensee_platform_id, 4)}, -- licensee_id (maps from admin's usps_license_id which I assume is the 4-char platform ID)
+  ${formatSqlChar(pafData.list_owner_sic, 6)}, -- list_owner_sic
+  ${formatSqlChar(pafData.frequency, 2)}, -- freq_proc
+  ${formatSqlChar(pafData.list_owner_id, 6)}, -- list_owner_id (your 6-char formatted ID)
+  ${formatSqlChar(pafData.company_name, 50)}, -- company
+  ${formatSqlChar(pafData.street_address, 50)}, -- address
+  ${formatSqlChar(pafData.city, 28)}, -- city
+  ${formatSqlChar(pafData.state, 2)}, -- state
+  ${formatSqlChar(pafData.zip_code, 9)}, -- zip
+  ${formatSqlChar(pafData.zip4, 4)}, -- zip4
+  ${formatSqlNumericChar(pafData.telephone, 10)}, -- telephone (digits only)
+  ${formatSqlChar(pafData.signer_name, 50)}, -- sign_name
+  ${formatSqlChar(pafData.signer_title, 50)}, -- sign_title
+  ${formatDateToMMDDYYYY(pafData.date_signed)}, -- sign_customer_date
+  ${formatSqlChar(pafData.paf_type, 1)}, -- paf_type
+  ${formatSqlChar(pafData.list_name, 32)}, -- list_name
+  ${formatSqlChar(pafData.mailer_id, 15)}, -- postal_id (mapping to mailer_id)
+  ${formatSqlChar(pafData.parent_company, 50)}, -- parent_company
+  ${formatSqlChar(pafData.alternate_company_name, 50)}, -- alt_company
+  ${formatSqlChar(pafData.agent_id, 6)}, -- broker_id (mapping to agent_id, which is a user.id - you may need to format this differently)
+  ${formatDateToMMDDYYYY(pafData.agent_signed_date)}, -- sign_broker_date
+  ${formatSqlNumericChar(pafData.fax_number, 10)}, -- fax (digits only)
+  ${formatSqlChar(pafData.signer_email, 50)}, -- email (mapping to signer_email)
+  ${formatSqlChar(pafData.urbanization, 30)}, -- urbanization
+  ${formatSqlChar(pafData.list_owner_crid, 45)} -- list_owner_crid
+);
+    `.trim().replace(/\s+/g, ' '); // Clean up newlines and extra spaces for a single line output
+
+    // Send the generated SQL as a plain text response
+    res.setHeader('Content-Type', 'text/plain');
+    res.status(200).send(sqlStatement);
+
+  } catch (error) {
+    console.error(`Error generating migration SQL for PAF ID ${pafIdToMigrate}:`, error);
+    res.status(500).json({ message: 'Failed to generate migration SQL.' });
   } finally {
     if (connection) connection.release();
   }

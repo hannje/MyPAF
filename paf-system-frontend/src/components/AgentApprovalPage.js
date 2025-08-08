@@ -4,7 +4,7 @@ import axios from 'axios';
 import AuthContext from '../context/AuthContext';
 
 //const API_BASE_URL = process.env.REACT_APP_API_URL || 'http://localhost:3001';
-const API_BASE_URL = 'https://10.72.14.19:3443';
+const API_BASE_URL = process.env.REACT_APP_API_URL || 'https://10.72.14.19:3443';
 
 function AgentApprovalPage() {
   const { pafId } = useParams();

@@ -25,12 +25,21 @@
 }
 
 .back-to-dashboard-link {
-    color: #3498db;
-    text-decoration: none;
-    font-size: 0.9em;
-    font-weight: 500;
+    color: #007bff;
+    text-decoration: underline;
+    font-size: 1rem;
+    font-weight: 600;
+    padding: 8px 12px;
+    background-color: #f8f9fa;
+    border: 1px solid #dee2e6;
+    border-radius: 4px;
+    display: inline-block;
+    margin-bottom: 15px;
+    transition: all 0.2s ease;
 }
 .back-to-dashboard-link:hover {
+    background-color: #e9ecef;
+    color: #0056b3;
     text-decoration: underline;
 }
 
@@ -254,4 +263,13 @@
 
 .history-button:hover:not(:disabled) {
     background-color: #8e44ad;
+}
+
+.export-button {
+    background-color: #17a2b8;
+    color: white;
+}
+
+.export-button:hover:not(:disabled) {
+    background-color: #138496;
 }
