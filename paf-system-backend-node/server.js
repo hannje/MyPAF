@@ -1,4 +1,5 @@
 // paf-system-backend-node/server.js
+// Updated with userID and USPS ID generation improvements
 
 require('dotenv').config(); // Load environment variables from .env file
 
