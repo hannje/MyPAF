@@ -3,6 +3,17 @@
 
 require('dotenv').config(); // Load environment variables from .env file
 
+const envFile = process.env.NODE_ENV === 'development' ? '.env.development' : '.env';
+
+console.log('envFile:', envFile);
+
+require('dotenv-expand').expand(require('dotenv').config({ path: `./${envFile}` }));
+
+
+const logActivity = require('./services/logger'); // <<< IMPORT YOUR NEW LOGGER
+
+console.log('Environment:', process.env.NODE_ENV);
+
 // Enhanced logging with timestamps
 const originalConsoleLog = console.log;
 const originalConsoleError = console.error;
@@ -47,16 +58,65 @@ const session = require('express-session');
 
 const { v4: uuidv4 } = require('uuid'); // For generating unique list_owner_id
 
+const multer = require('multer'); // <<< IMPORT MULTER
+
+const signaturesDir = path.join(__dirname, 'public', 'signatures');
+
+if (!fs1.existsSync(signaturesDir)) {
+  fs1.mkdirSync(signaturesDir, { recursive: true });
+}
+
+// 3. Configure multer's storage engine
+const storage = multer.diskStorage({
+  destination: function (req, file, cb) {
+    cb(null, signaturesDir); // Tell multer to save files in the 'public/signatures' folder
+  },
+  filename: function (req, file, cb) {
+    // Create a unique filename to avoid overwrites: userId-timestamp-originalName
+    const userId = req.params.userId; // Get userId from the route parameter
+    const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
+    const extension = path.extname(file.originalname);
+    const newFilename = `user-${userId}-signature-${uniqueSuffix}${extension}`;
+    cb(null, newFilename);
+  }
+});
+
+// 4. Create the multer upload instance
+const upload = multer({
+  storage: storage,
+  limits: { fileSize: 5 * 1024 * 1024 }, // Example: 5MB file size limit
+  fileFilter: function (req, file, cb) {
+    // Accept only image files
+    if (!file.originalname.match(/\.(jpg|jpeg|png|gif)$/i)) {
+      return cb(new Error('Only image files (jpg, jpeg, png, gif) are allowed!'), false);
+    }
+    cb(null, true);
+  }
+});
+
+
+
 const app = express();
 const PORT = process.env.PORT || 3001; // Use environment variable or default
 
 const HTTP_PORT = process.env.PORT || 3001;
 const HTTPS_PORT = process.env.HTTPS_PORT || 3443; // A common port for local HTTPS
 
+console.log('Environment PORTS', HTTP_PORT, HTTPS_PORT);
+
 const allowedOrigins = [
+  'http://localhost:8080',       // For accessing frontend from the dev machine itself
+  'https://localhost:8080',       // For accessing frontend from the dev machine itself
+  'http://10.72.14.19:8080' ,    // For accessing frontend from other machines on your network (replace with your dev machine's actual current network IP if it changes)
+  'https://10.72.14.19:8080' ,     // <<< THIS IS THE CRITICAL ADDITION
+
   'http://localhost:3002',       // For accessing frontend from the dev machine itself
   'http://10.72.14.19:3002' ,    // For accessing frontend from other machines on your network (replace with your dev machine's actual current network IP if it changes)
-  'https://10.72.14.19:3002'      // <<< THIS IS THE CRITICAL ADDITION
+  'https://10.72.14.19:3002',      // <<< THIS IS THE CRITICAL ADDITION
+  'https://10.72.18.61:3002' ,     // <<< THIS IS THE CRITICAL ADDITION
+  'https://10.72.18.61' 
+
+
 ];
 
 
@@ -69,6 +129,8 @@ const allowedOrigins = [
 //    credentials: true, // Allow cookies to be sent with requests     
 //    methods: ['GET', 'POST', 'PUT', 'DELETE'], // Allowed HTTP methods   
 //}));
+
+app.use(express.static(path.join(__dirname, 'public')));
 
 
 app.use(cors({
@@ -309,8 +371,33 @@ app.post('/api/admins/register-admin', /* authenticateAdmin, */ async (req, res)
     city,
     state,
     zipCode,
-    phoneNumber
+    phoneNumber,
+    useEmail,
+    sic,
+    fax,
+    website
   } = req.body;
+
+  //upper case certain fields and trim whitespace
+const formattedData = {
+    firstName: firstName ? firstName.toUpperCase().trim() : null,
+    lastName: lastName ? lastName.toUpperCase().trim() : null,
+    email: email ? email.toUpperCase().trim() : null, // Email is often stored as-is or lowercase, but not usually uppercase.
+    password: password, // Don't modify the password
+    role: role ? role.toUpperCase().trim() : null,
+    brokerListAdmin: brokerListAdmin ? brokerListAdmin.trim() : null,
+    licenseeName: licenseeName ? licenseeName.toUpperCase().trim() : null,
+    sic: sic ? sic.trim() : null, // SIC/NAICS are usually numeric, but trimming is safe.
+    streetAddress: streetAddress ? streetAddress.toUpperCase().trim() : null,
+    city: city ? city.toUpperCase().trim() : null,
+    state: state ? state.toUpperCase().trim() : null,
+    zipCode: zipCode ? zipCode.trim() : null,
+    phoneNumber: phoneNumber ? phoneNumber.trim() : null,
+    fax: fax ? fax.trim() : null,
+    website: website ? website.toUpperCase().trim() : null, // Website URLs are case-sensitive, do not uppercase them.
+    useEmail: useEmail ? useEmail.toUpperCase().trim() : null, // Emails are case-insensitive but usually stored lowercase.
+  };
+
 
   // Get the ID of the admin creating this new admin (if applicable and auth middleware is used)
   // const creatingAdminId = req.admin ? req.admin.id : null;
@@ -331,7 +418,7 @@ app.post('/api/admins/register-admin', /* authenticateAdmin, */ async (req, res)
     await connection.beginTransaction();
 
     // --- Check for existing email or USPS License ID (if they must be unique) ---
-    const checkQuery = 'SELECT id FROM users WHERE email = ? OR usps_license_id = ?';
+    const checkQuery = 'SELECT id FROM users WHERE email = ? AND usps_license_id = ?';
     const [existingUsers] = await connection.execute(checkQuery, [email.trim(), uspsLicenseId.trim()]);
 
     if (existingUsers.length > 0) {
@@ -353,10 +440,10 @@ app.post('/api/admins/register-admin', /* authenticateAdmin, */ async (req, res)
     const insertQuery = `
       INSERT INTO users (
         first_name, last_name, email, password, role,broker_list_admin,
-        usps_license_id, licensee_name, street_address, city, state, zip_code, phone_number,
-        created_by_admin_id, -- This would be the ID of the admin creating this user, or NULL
+        usps_license_id, licensee_name, street_address, city, state, zip, phone_number,use_email,sic,fax,website,
+        created_by_admin_id, 
         created_at, updated_at
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW(), NOW());
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,  ?, ?, ?, NOW(), NOW());
     `;
 
     // Determine created_by_admin_id. If an admin is logged in and creating this user, use their ID.
@@ -365,19 +452,23 @@ app.post('/api/admins/register-admin', /* authenticateAdmin, */ async (req, res)
 
 
     const [result] = await connection.execute(insertQuery, [
-      firstName.trim(),
-      lastName.trim(),
-      email.trim(),
+      formattedData.firstName.trim(),
+      formattedData.lastName.trim(),
+      formattedData.email.trim(),
       hashedPassword,
-      role,
-      brokerListAdmin,
+      formattedData.role,
+      formattedData.brokerListAdmin,
       uspsLicenseId.trim(),
-      licenseeName.trim(),
-      streetAddress ? streetAddress.trim() : null,
-      city ? city.trim() : null,
-      state ? state.trim() : null,
+      formattedData.licenseeName.trim(),
+      formattedData.streetAddress ? formattedData.streetAddress.trim() : null,
+      formattedData.city ? formattedData.city.trim() : null,
+      formattedData.state ? formattedData.state.trim() : null,
       zipCode ? zipCode.trim() : null,
       phoneNumber ? phoneNumber.trim() : null,
+      formattedData.useEmail || null,
+      sic,
+      fax,
+      formattedData.website,
       creatorId // Assigning the creator's ID
     ]);
 
@@ -386,7 +477,7 @@ app.post('/api/admins/register-admin', /* authenticateAdmin, */ async (req, res)
 
     // Fetch and return the newly created admin (excluding password)
     const [newAdminRows] = await connection.execute(
-      'SELECT id, first_name, last_name, email, role,broker_list_admin, usps_license_id, licensee_name, street_address, city, state, zip_code, phone_number, created_by_admin_id, created_at, updated_at FROM users WHERE id = ?',
+              'SELECT id, first_name, last_name, email, role,broker_list_admin, usps_license_id, licensee_name, street_address, city, state, zip, phone_number, created_by_admin_id, created_at, updated_at FROM users WHERE id = ?',
       [newAdminId]
     );
 
@@ -464,235 +555,9 @@ app.get('/api/data/naics-codes', (req, res) => {
 // server.js (snippet for the /api/admins/register-admin endpoint)
 
 
-// User Creation (Potentially with Associated Party)
-app.post('/api/users/create-with-partyxx', async (req, res) => {
-
-    console.log("USER CREATION ROUTE CALLED",req.body);
-
-    const {
-        // User fields
-        firstName, lastName, email, phoneNumber, department, role, password, confirmPassword, isActive = true,
-        // Party fields
-        createAssociatedParty, companyName, addressLine1, city, state, zipCode, country = 'USA', partyType, naicsCode
-    } = req.body;
-
-      // The new user will operate under the same Licensee as the creating Admin
-    
-    console.log("USER",req.user);
-    console.log("AADMIN",req.admin);
- 
-    const userLicenseePartyId = req.body.licensee_party_id; // Get from authenticated Admin
-
-    // User Validation
-    if (!firstName || !lastName || !email || !role || !password || !confirmPassword) {
-        return res.status(400).json({ error: 'All required user fields must be filled.' });
-    }
-    if (password !== confirmPassword) {
-        return res.status(400).json({ error: 'User passwords do not match.' });
-    }
-    if (password.length < 8) {
-        return res.status(400).json({ error: 'User password must be at least 8 characters long.' });
-    }
- 
-    if (!userLicenseePartyId) { // Admin creating user must themselves be linked to a Licensee
-        console.error("CRITICAL: Admin user creating account does not have a licensee_party_id.", req.user);
-        return res.status(500).json({ error: "System configuration error: Admin not linked to a Licensee." });
-    }
-    // Party Validation (if applicable)
-    if (createAssociatedParty) {
-        if (!companyName || !addressLine1 || !city || !state || !zipCode || !partyType) {
-            return res.status(400).json({ error: 'All required company/party fields must be filled if creating an associated party.' });
-        }
-        if ((partyType === 'LIST_OWNER' || partyType === 'BROKER_AGENT') && !naicsCode) {
-             return res.status(400).json({ error: 'NAICS code is required for List Owners and Brokers/Agents when creating a party.' });
-        }
-    }
-
-    let connection;
-    try {
-        const hashedPassword = await hashPassword(password);
-        connection = await dbPool.getConnection();
-        await connection.beginTransaction();
-
-        const [existingUsers] = await connection.execute('SELECT user_id FROM users WHERE email = ?', [email]);
-        if (existingUsers.length > 0) {
-            await connection.rollback();
-            return res.status(409).json({ error: 'User email address already registered.' });
-        }
-
-        let newPartyId = null;
-        if (createAssociatedParty) {
-            const partySql = `
-                INSERT INTO parties (
-                    party_type, company_name, address_line1, city, state, zip_code, country, naics_code,
-                    created_at, updated_at
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
-            `;
-            const partyValues = [
-                partyType, companyName, addressLine1, city, state, zipCode, country,
-                (partyType === 'LIST_OWNER' || partyType === 'BROKER_AGENT') ? naicsCode : null
-            ];
-            const [partyResult] = await connection.execute(partySql, partyValues);
-            newPartyId = partyResult.insertId;
-        }
-        console.log("after patites inser:NEW PARTY ID", newPartyId);
-        const userSql = `
-            INSERT INTO users (
-                first_name, last_name, email, password_hash, phone_number,
-                department, role, is_active,
-                licensee_party_id,          
-                associated_party_id,        
-                created_at, updated_at
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
-        `;
-
-        // Adjust userValues if you add associated_party_id to users table
-        const userValues = [
-            firstName, lastName, email, hashedPassword, phoneNumber || null,
-            department || null, role, isActive === true || isActive === 'true', // Ensure boolean
-             userLicenseePartyId,          // Set from creating admin's licensee
-            newPartyId  // Can be null
-            ];
-       
-        console.log("USER VALUES",userValues);
-
-        const [userResult] = await connection.execute(userSql, userValues);
-        const newUserId = userResult.insertId;
-
-        await connection.commit();
-
-        let successMessage = `User ${firstName} ${lastName} (ID: ${newUserId}) created successfully!`;
-        if (newPartyId) {
-            successMessage += ` Associated Party ${companyName} (ID: ${newPartyId}) also created.`;
-        }
-
-        res.status(201).json({
-            message: successMessage,
-            userId: newUserId,
-            partyId: newPartyId
-        });
-
-    } catch (error) {
-        console.error('Database Error creating user/party:', error);
-        if (connection) {
-            await connection.rollback();
-        }
-        res.status(500).json({ error: 'Failed to process registration. An internal error occurred: ' + error.message });
-    } finally {
-        if (connection) {
-            connection.release();
-        }
-    }
-});
 
 
 
-
-// PAF Creation (Initiation by Admin)
-app.post('/api/pafsxxx/create', async (req, res) => {
-    const {
-        listOwnerId, licenseeId, brokerAgentId, listAdministratorId,
-        pafType, isMultipleLists, notes,processingFrequencyCode ,jurisdiction
-    } = req.body;
-
-    console.log("PAF CREATION REQUEST BODY:", req.body);
-
-    if (!listOwnerId || !licenseeId || !pafType || !jurisdiction) {
-        return res.status(400).json({ error: 'Required PAF information is missing (List Owner, Licensee, Type, Jurisdiction).' });
-    }
-    if (processingFrequencyCode) { // Validate if provided
-        const freqNum = parseInt(processingFrequencyCode);
-        if (isNaN(freqNum) || ((freqNum < 1 || freqNum > 52) && freqNum !== 99) || processingFrequencyCode.length !== 2) {
-            return res.status(400).json({ error: 'Invalid Processing Frequency Code. Must be 01-52 or 99.' });
-        }
-    } else {
-        // Decide on a default or make it required. Let's make it required for now.
-         return res.status(400).json({ error: 'Processing Frequency Code (01-52 or 99) is required.' });
-    }
-
-
-
-    let connection;
-    try {
-        connection = await dbPool.getConnection();
-        await connection.beginTransaction();
-
-        // Verify party IDs (simplified - in real app, more robust checks or ensure dropdowns are accurate)
-        const [ownerCheck] = await connection.execute('SELECT party_id FROM parties WHERE party_id = ? AND party_type = ?', [listOwnerId, 'LIST_OWNER']);
-        if (ownerCheck.length === 0) throw new Error(`List Owner with ID ${listOwnerId} not found.`);
-
-        let initialStatus = jurisdiction === 'FOREIGN' ? 'PENDING_LOI_FOREIGN_ONLY' : 'PENDING_LIST_OWNER_APPROVAL';
-        const dateIssued = new Date();
-
-        const pafSql = `
-            INSERT INTO pafs (
-                list_owner_id, licensee_id, list_administrator_id, paf_type, jurisdiction,
-                current_status, is_multiple_lists, date_issued,
-                processing_frequency_code, 
-                 created_at, updated_at
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?,  CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
-        `;
-        const pafValues = [
-            listOwnerId, licenseeId, listAdministratorId || null, pafType, jurisdiction,
-            initialStatus, isMultipleLists || false, dateIssued,
-            processingFrequencyCode
-        ];
-
-  
-        console.log("PAF SQL:", pafSql);
-        console.log("PAF VALUES:", pafValues);
-
-        const [pafResult] = await connection.execute(pafSql, pafValues);
-        const newPafId = pafResult.insertId;
-
-        console.log("paf result",pafResult);
-
-
-        if (brokerAgentId) {
-            const [brokerCheck] = await connection.execute('SELECT party_id FROM parties WHERE party_id = ? AND party_type = ?', [brokerAgentId, 'BROKER_AGENT']);
-            if (brokerCheck.length === 0) throw new Error (`Broker with ID ${brokerAgentId} not found.`);
-            await connection.execute(
-                'INSERT INTO paf_brokers (paf_id, broker_party_id) VALUES (?, ?)',
-                [newPafId, brokerAgentId]
-            );
-        }
-        else// see if list admin is here
-        {
-            if(listAdministratorId)
-            {
-               const [brokerCheck] = await connection.execute('SELECT party_id FROM parties WHERE party_id = ?', [listAdministratorId]);
-            if (brokerCheck.length === 0) throw new Error (`Broker with ID ${brokerAgentId} not found.`);
-            await connection.execute(
-                'INSERT INTO paf_brokers (paf_id, broker_party_id) VALUES (?, ?)',
-                [newPafId, listAdministratorId]
-            );
-
-
-            }
-
-
-        }
-
-        await connection.execute(
-            'INSERT INTO paf_status_history (paf_id, status, notes, changed_at) VALUES (?, ?, ?, ?)',
-            [newPafId, initialStatus, `PAF initiated. Notes: ${notes || 'N/A'}`, dateIssued]
-        );
-
-        await connection.commit();
-
-        res.status(201).json({
-            message: `PAF (DB ID: ${newPafId}) initiated successfully. Status: ${initialStatus}.`,
-            paf: { paf_id: newPafId, current_status: initialStatus, date_issued: dateIssued.toISOString().slice(0,10) }
-        });
-
-    } catch (error) {
-        console.error('Error creating PAF:', error);
-        if (connection) await connection.rollback();
-        res.status(500).json({ error: 'Failed to initiate PAF: ' + error.message });
-    } finally {
-        if (connection) connection.release();
-    }
-});
 
 
 // --- Admin Dashboard API Endpoints (Currently Mocked) ---
@@ -728,17 +593,19 @@ app.get('/api/pafs/summary', ensureAuthenticated, async (req, res) => {
          const pendingValidationUsCount = pendingValidationUsResult[0].count || 0;
 
          const [pendingUspsApprovalForeign] = await connection.execute(
-            "SELECT COUNT(*) as count FROM pafs WHERE status = 'PENDING_USPS_APPROVAL_FOREIGN_ONLY'"
+            "SELECT COUNT(*) as count FROM pafs WHERE status = 'PENDING_USPS_APPROVAL_FOREIGN' and licensee_id= ? ",[uspsID]
         );
         const pendingUspsApprovalForeignCount = pendingUspsApprovalForeign[0].count || 0;
  
         const [rejectedIncomplete] = await connection.execute(
-            "SELECT COUNT(*) as count FROM pafs WHERE status = 'REJECTED_INCOMPLETE'"
+            "SELECT COUNT(*) as count FROM pafs WHERE status = 'REJECTED_INCOMPLETE' and licensee_id= ? ",[uspsID]
         );
         const rejectedIncompleteCount = rejectedIncomplete[0].count || 0;
 
         const [renewalDueNext30Days] = await connection.execute(
-            "SELECT COUNT(*) as count FROM pafs WHERE status = 'LICENSEE_VALIDATED' and DATE(expiration) BETWEEN CURDATE() AND DATE_ADD(CURDATE(), INTERVAL 30 DAY)");
+            "SELECT COUNT(*) as count FROM pafs WHERE status = 'LICENSEE_VALIDATED' and licensee_id= ? and DATE(expiration) BETWEEN CURDATE() AND DATE_ADD(CURDATE(), INTERVAL 30 DAY)"
+          ,[uspsID] );
+
         const renewalDueNext30DaysCount = renewalDueNext30Days[0].count || 0;
 
 
@@ -779,7 +646,7 @@ app.get('/api/pafs/action-required', async (req, res) => {
                 p.paf_id AS internalDbId,
                 p.licensee_assigned_paf_id AS pafId,
                 p.list_owner_id,
-                lo_party.company_name AS listOwner, -- This needs the JOIN
+                lo_party.company AS listOwner, -- This needs the JOIN
                 p.jurisdiction,
                 p.status AS status,
                 p.date_issued,
@@ -851,7 +718,7 @@ app.get('/api/pafs/action-required', async (req, res) => {
 // mypafreact/paf-system-backend-node/server.js
 
 // ... (express, cors, bcrypt, mysql, session imports and setup as previously done) ...
-// Ensure app.use(session(...)) is configured and called BEFORE this route.
+// Ensure app.use(session(...)) is configured and called BEFORE your routes.
 // Ensure app.use(cors({ origin: '...', credentials: true })) is configured.
 
 app.post('/api/auth/login', async (req, res) => {
@@ -862,6 +729,8 @@ app.post('/api/auth/login', async (req, res) => {
     return res.status(400).json({ message: 'Email and password are required.' });
   }
 
+  const ip = req.ip; // Get user's IP address from the request object
+ 
   let connection;
   try {
     connection = await dbPool.getConnection();
@@ -872,7 +741,7 @@ app.post('/api/auth/login', async (req, res) => {
         id, email, password, role, 
         first_name, last_name, 
         usps_license_id, licensee_name, 
-        street_address, city, state, zip_code, phone_number,
+        street_address, city, state, zip, phone_number,
         created_by_admin_id 
       FROM users 
       WHERE email = ?`;
@@ -889,6 +758,8 @@ app.post('/api/auth/login', async (req, res) => {
     const isMatch = await bcrypt.compare(password, userFromDb.password);
 
     if (!isMatch) {
+
+      logActivity('WARN', 'User login failed (Invalid Credentials).', { user: email, ip });      
       console.log(`Backend /api/auth/login: Password mismatch for email - ${email}`);
       return res.status(401).json({ message: 'Invalid credentials.' });
     }
@@ -911,7 +782,7 @@ app.post('/api/auth/login', async (req, res) => {
       // streetAddress: userFromDb.street_address,
       // city: userFromDb.city,
       // state: userFromDb.state,
-      // zipCode: userFromDb.zip_code,
+              // zipCode: userFromDb.zip,
       // phoneNumber: userFromDb.phone_number,
 
       // createdByAdminId might be useful for context, but less so for the admin themselves
@@ -935,6 +806,9 @@ app.post('/api/auth/login', async (req, res) => {
 
       console.log(`Backend /api/auth/login: Session saved successfully for user: ${sessionUser.email}, Role: ${sessionUser.role}, User ID: ${sessionUser.id}, USPS License ID: ${sessionUser.uspsLicenseId}`);
       
+      logActivity('INFO', 'User login successful.', { user: email, ip });
+ 
+
       // The session cookie will be automatically sent back to the browser by express-session.
       // Send back the user object for the frontend to update its state immediately.
       return res.status(200).json({
@@ -992,8 +866,27 @@ app.post('/api/users/create-by-admin', authenticateAdmin, async (req, res) => {
     firstName, lastName, email, password, role,brokerListAdmin,
     // New fields for the user's own company/address info
     licenseeName,sic, // This will be stored as this user's 'company name'
-    streetAddress, city, state, zipCode, phoneNumber
+    streetAddress, city, state, zipCode, phoneNumber,fax,website
   } = req.body;
+
+  const formattedData = {
+    firstName: firstName ? firstName.trim() : null,
+    lastName: lastName ? lastName.trim() : null,
+    email: email ? email.trim() : null, // Email is often stored as-is or lowercase, but not usually uppercase.
+    password: password, // Don't modify the password
+    role: role ? role.toUpperCase().trim() : null,
+    brokerListAdmin: brokerListAdmin ? brokerListAdmin.trim() : null,
+    licenseeName: licenseeName ? licenseeName.toUpperCase().trim() : null,
+    sic: sic ? sic.trim() : null, // SIC/NAICS are usually numeric, but trimming is safe.
+    streetAddress: streetAddress ? streetAddress.toUpperCase().trim() : null,
+    city: city ? city.toUpperCase().trim() : null,
+    state: state ? state.toUpperCase().trim() : null,
+    zipCode: zipCode ? zipCode.trim() : null,
+    phoneNumber: phoneNumber ? phoneNumber.trim() : null,
+    fax: fax ? fax.trim() : null,
+    website: website ? website.trim() : null, // Website URLs are case-sensitive, do not uppercase them.
+  };
+
 
   console.log('Backend: /api/users/create-by-admin request body:', req.body);
 
@@ -1020,10 +913,10 @@ app.post('/api/users/create-by-admin', authenticateAdmin, async (req, res) => {
     const insertUserQuery = `
       INSERT INTO users (
         first_name, last_name, email, password, role,broker_list_admin,
-        licensee_name, street_address, city, state, zip_code, phone_number, 
+        licensee_name, street_address, city, state, zip, phone_number,fax,website,
         created_by_admin_id, SIC,usps_license_id,
         created_at, updated_at
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,  NOW(), NOW()); 
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,?, NOW(), NOW()); 
     `;
     // Note: usps_license_id is explicitly set to NULL here for a regular user.
     // If a user *could* have their own, you'd pass it from the form.
@@ -1032,18 +925,20 @@ app.post('/api/users/create-by-admin', authenticateAdmin, async (req, res) => {
     console.log('Backend: /api/users/create-by-admin - Preparing to insert new user with query:', insertUserQuery);
     
     const userParms = [
-      firstName.trim(), 
-      lastName.trim(), 
-      email.trim(), 
+      formattedData.firstName.trim(), 
+      formattedData.lastName.trim(), 
+      formattedData.email.trim(), 
       hashedPassword, 
-      role,
-      brokerListAdmin,
-      licenseeName ? licenseeName.trim() : null,
-      streetAddress ? streetAddress.trim() : null,
-      city ? city.trim() : null,
-      state ? state.trim() : null,
+      formattedData.role,
+      formattedData.brokerListAdmin,
+      formattedData.licenseeName ? licenseeName.trim() : null,
+      formattedData.streetAddress ? streetAddress.trim() : null,
+      formattedData.city ? city.trim() : null,
+      formattedData.state ? state.trim() : null,
       zipCode ? zipCode.trim() : null,
       phoneNumber ? phoneNumber.trim() : null,
+      fax ? fax.trim() : null,
+      formattedData.website ? website.trim() : null,
       creatingAdminId,
       sic,
       creatingAdminLic,
@@ -1073,10 +968,20 @@ app.post('/api/users/create-by-admin', authenticateAdmin, async (req, res) => {
     const updateQuery = 'UPDATE users SET uspsID = ? WHERE id = ?';
     await connection.execute(updateQuery, [generatedUspsId, newUserId]);
 
+    console.log("prior update",newUserId,generatedUserId)
+    const updateQuery1 = 'UPDATE users SET UserID = ? WHERE id = ?';
+    await connection.execute(updateQuery1, [generatedUserId, newUserId]);
 
     
     await connection.commit();
 
+    const creatingAdmin = req.session.user;
+    const { email: newUserEmail } = req.body;
+   
+    logActivity('ACTION', `Admin created new user.`, { 
+      user: creatingAdmin.email, 
+      details: `New user email: ${newUserEmail}` // Example of adding more context
+    });
 
 
 
@@ -1084,7 +989,7 @@ app.post('/api/users/create-by-admin', authenticateAdmin, async (req, res) => {
 
     // ... (fetch and return created user, make sure to fetch the new fields too) ...
     const [newUserRows] = await connection.execute(
-        'SELECT id, first_name, last_name, email, role,broker_list_admin, licensee_name, street_address, city, state, zip_code, phone_number, created_by_admin_id, usps_license_id, created_at FROM users WHERE id = ?',
+        'SELECT id, first_name, last_name, email, role,broker_list_admin, licensee_name, street_address, city, state, zip, phone_number, created_by_admin_id, usps_license_id, created_at FROM users WHERE id = ?',
         [newUserId]
     );
     
@@ -1177,6 +1082,8 @@ app.get('/api/dashboard/users', async (req, res) => {
         u.usps_license_id, -- The user's own USPS License ID (will be populated for admins)
         u.licensee_name,   -- The user's own company name
         u.created_by_admin_id,
+        u.broker_list_admin,
+        u.SIC,
         creator.email as creator_email -- Email of the creating admin
       FROM users u
       LEFT JOIN users creator ON u.created_by_admin_id = creator.id
@@ -1203,8 +1110,10 @@ app.get('/api/dashboard/users', async (req, res) => {
         lastName: user.last_name,
         email: user.email,
         role: user.role,
+        bla:user.broker_list_admin,
         createdAt: user.created_at, // Ensure this is JS Date compatible or format here
-         firm: user.licensee_name
+         firm: user.licensee_name,
+         sic:user.SIC
     }));
 
     console.log(`Backend: /api/dashboard/users - Found ${formattedUsers.length} users created by admin_id ${loggedInAdminId}`);
@@ -1239,14 +1148,14 @@ app.get('/api/parties', async (req, res) => {
     let connection;
     try {
         connection = await dbPool.getConnection();
-        let sql = 'SELECT party_id, company_name, party_type, naics_code FROM parties';
+        let sql = 'SELECT party_id, company, party_type, naics_code FROM parties';
         const queryParams = [];
 
         if (partyTypeFilter) {
             sql += ' WHERE party_type = ?';
             queryParams.push(partyTypeFilter.toUpperCase()); // Ensure consistent casing
         }
-        sql += ' ORDER BY company_name';
+        sql += ' ORDER BY company';
 
         const [parties] = await connection.execute(sql, queryParams);
         res.json(parties);
@@ -1293,11 +1202,19 @@ app.get('/api/auth/session-status', (req, res) => {
 
 // mypafreact/paf-system-backend-node/server.js
 app.post('/api/auth/logout', (req, res) => {
+
+  const userEmail = req.session?.user?.email || 'Unknown User';
+  const ip = req.ip;
+  logActivity('INFO', 'User logout.', { user: userEmail, ip });
+
+
   req.session.destroy((err) => {
     if (err) {
       console.error('Logout error (session destruction):', err);
       return res.status(500).json({ message: 'Could not log out, please try again.' });
     }
+
+
     res.clearCookie('connect.sid'); // Default express-session cookie name, adjust if you changed it
     console.log('Backend Logout: Session destroyed.');
     return res.status(200).json({ message: 'Logged out successfully' });
@@ -1401,8 +1318,8 @@ function formatPafListOwnerId(id) {
 
 function formatUserId(id) {
   const pafPrefix = process.env.PAF_PREFIX || 'AN';
-  const paddedId = String(id).padStart(6, '0'); // 6-digit padded ID for users
-  return `${pafPrefix}${paddedId}`; // Example: "AN000001", "AN000123"
+  const paddedId = String(id).padStart(4, '0'); // 4-digit padded ID for users
+  return `${pafPrefix}${paddedId}`; // Example: "AN0001", "AN0123"
 }
 
 app.post('/api/pafs', ensureAuthenticated, async (req, res) => {
@@ -1415,6 +1332,27 @@ app.post('/api/pafs', ensureAuthenticated, async (req, res) => {
     listName, frequency, notes, customId,
     agentId, agentSignedDate,jurisdiction
   } = req.body;
+
+ const formattedData = {
+    companyName: companyName ? companyName.toUpperCase().trim() : null,
+    parentCompany: parentCompany ? parentCompany.toUpperCase().trim() : null,
+    alternateCompanyName: alternateCompanyName ? alternateCompanyName.toUpperCase().trim() : null,
+    streetAddress: streetAddress ? streetAddress.toUpperCase().trim() : null,
+    city: city ? city.toUpperCase().trim() : null,
+    state: state ? state.toUpperCase().trim() : null,
+    // ... format all other relevant string fields to uppercase ...
+    // Be careful NOT to uppercase fields like email or website URLs
+    signerName: req.body.signerName ? req.body.signerName.toUpperCase().trim() : null,
+    urbanization: req.body.urbanization ? req.body.urbanization.toUpperCase().trim() : null,
+    signerTitle: req.body.signerTitle ? req.body.signerTitle.toUpperCase().trim() : null,
+    listName: req.body.listName ? req.body.listName.toUpperCase().trim() : null,
+    customId: req.body.customId ? req.body.customId.toUpperCase().trim() : null,
+    mailerId: req.body.mailerId ? req.body.mailerId.toUpperCase().trim() : null,
+    listOwnerCrid: req.body.listOwnerCrid ? req.body.listOwnerCrid.toUpperCase().trim() : null,
+    listOwnerCrid: req.body.listOwnerCrid ? req.body.listOwnerCrid.toUpperCase().trim() : null,
+    // ...
+  };
+
 
   console.log(`Backend /api/pafs: Create PAF request by user ID ${loggedInUser.id}`);
 
@@ -1442,6 +1380,11 @@ app.post('/api/pafs', ensureAuthenticated, async (req, res) => {
     // determine if agent associated withthis PAF
     let initialStatus = 'PENDING_LIST_OWNER_APPROVAL'; // The default status
     let agentUser = null; // To hold the agent's details if found
+
+    if (jurisdiction === 'FOREIGN') {
+      initialStatus = 'PENDING_USPS_APPROVAL_FOREIGN';
+      console.log(`Backend /api/pafs: Jurisdiction is FOREIGN. Setting initial status to ${initialStatus}`);
+    } 
 
 
   let connection;
@@ -1484,8 +1427,8 @@ app.post('/api/pafs', ensureAuthenticated, async (req, res) => {
       // Include date_signed when provided
       insertColumns = `
         licensee_id, created_by_user_id,
-        list_owner_sic, company_name, parent_company, alternate_company_name,
-        street_address, city, state, zip_code, zip4, telephone, fax_number, urbanization,
+        list_owner_sic, company, parent_company, alt_company,
+        address, city, state, zip, zip4, telephone, fax_number, urbanization,
         list_owner_crid, mailer_id,
         signer_name, signer_title, signer_email, date_signed,
         list_name, frequency, notes, CustomID,
@@ -1494,39 +1437,76 @@ app.post('/api/pafs', ensureAuthenticated, async (req, res) => {
          created_at, updated_at`;
       insertValues = `?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW(), NOW()`;
       insertParams = [
-        licenseeIdForPaf, createdByUserId,
-        listOwnerSic || null, companyName, parentCompany || null, alternateCompanyName || null,
-        streetAddress || null, city || null, state || null, zipCode || null, zip4 || null,
-        telephone || null, faxNumber || null, urbanization || null,
-        listOwnerCrid || null, mailerId || null,
-        signerName || null, signerTitle || null, signerEmail || null, dateSigned,
-        listName, frequency || null, notes || null, customId || null,
-        agentId || null, agentSignedDate || null,
-        initialStatus, jurisdiction, 'I'
+        licenseeIdForPaf, 
+        createdByUserId,
+        listOwnerSic || null, 
+        formattedData.companyName, 
+        formattedData.parentCompany || null, 
+        formattedData.alternateCompanyName || null,
+        formattedData.streetAddress || null,
+         formattedData.city || null, 
+         formattedData.state || null, 
+         zipCode || null, 
+         zip4 || null,
+        telephone || null, 
+        faxNumber || null, 
+        formattedData.urbanization || null,
+        listOwnerCrid || null, 
+        mailerId || null,
+        formattedData.signerName || null, 
+        formattedData.signerTitle || null, 
+        signerEmail || null,
+         dateSigned,
+        formattedData.listName, 
+        frequency || null, 
+        notes || null,
+         customId || null,
+        agentId || null, 
+        agentSignedDate || null,
+        initialStatus,
+         jurisdiction, 'I'
       ];
     } else {
       // Exclude date_signed when not provided
       insertColumns = `
         licensee_id, created_by_user_id,
-        list_owner_sic, company_name, parent_company, alternate_company_name,
-        street_address, city, state, zip_code, zip4, telephone, fax_number, urbanization,
+        list_owner_sic, company, parent_company, alt_company,
+        address, city, state, zip, zip4, telephone, fax_number, urbanization,
         list_owner_crid, mailer_id,
         signer_name, signer_title, signer_email,
-        list_name, frequency, notes, CustomID,
+        list_name, freq_proc, notes, CustomID,
         agent_id, agent_signed_date,
         status,jurisdiction,paf_type,
          created_at, updated_at`;
       insertValues = `?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW(), NOW()`;
       insertParams = [
-        licenseeIdForPaf, createdByUserId,
-        listOwnerSic || null, companyName, parentCompany || null, alternateCompanyName || null,
-        streetAddress || null, city || null, state || null, zipCode || null, zip4 || null,
-        telephone || null, faxNumber || null, urbanization || null,
-        listOwnerCrid || null, mailerId || null,
-        signerName || null, signerTitle || null, signerEmail || null,
-        listName, frequency || null, notes || null, customId || null,
-        agentId || null, agentSignedDate || null,
-        initialStatus, jurisdiction, 'I'
+        licenseeIdForPaf, 
+        createdByUserId,
+        listOwnerSic || null, 
+        formattedData.companyName, 
+        formattedData.parentCompany || null, 
+        formattedData.alternateCompanyName || null,
+        formattedData.streetAddress || null, 
+        formattedData.city || null, 
+        formattedData.state || null, 
+        zipCode || null, 
+        zip4 || null,
+        telephone || null, 
+        faxNumber || null, 
+        formattedData.urbanization || null,
+        listOwnerCrid || null, 
+        mailerId || null,
+        formattedData.signerName || null, 
+        formattedData.signerTitle || null, 
+        formattedData.signerEmail || null,
+        formattedData.listName, 
+        frequency || null, 
+        notes || null, 
+        customId || null,
+        agentId || null, 
+        agentSignedDate || null,
+        initialStatus, 
+        jurisdiction, 'I'
       ];
     }
 
@@ -1543,6 +1523,12 @@ app.post('/api/pafs', ensureAuthenticated, async (req, res) => {
     await connection.execute(updateQuery, [generatedListOwnerId, newPafRecordId]);
 
     await connection.commit();
+
+
+    logActivity('ACTION', `User created a new PAF.`, { 
+      user: loggedInUser.email, 
+      details: `New PAF DB ID: ${newPafRecordId}`
+    });
 
     // --- Step 4: Fetch the complete PAF record to return ---
     const [pafRows] = await connection.execute('SELECT * FROM pafs WHERE id = ?', [newPafRecordId]);
@@ -1586,75 +1572,7 @@ app.post('/api/pafs', ensureAuthenticated, async (req, res) => {
   }
 });
 
-    app.get('/api/user/pafsfetch', async (req, res) => { // MOCK: No auth for now, but you'd add it
-        // In a real app, you'd get userId from the authenticated session/token
-        // const userId = req.user.userId; // Example if using JWT and authenticateToken middleware
-        // const userAssociatedPartyId = req.user.associatedPartyId; // If available
-    
-        // MOCKING: Let's assume we pass a userId as a query param for testing without auth
-        const userIdForQuery = req.query.userId; // e.g., /api/user/pafs?userId=2
-        const userAssociatedPartyIdForQuery = req.query.partyId; // e.g., /api/user/pafs?userId=2&partyId=10
-    
-        console.log(`USER PAFS FETCH: User req` ,req.query);
-//       console.log(`USER PAFS FETCH: User req headers` ,req.headers);user/p
-//      console.log(`USER PAFS FETCH: User req headers` ,req.headers);
 
-    
-        if (!userIdForQuery && !userAssociatedPartyIdForQuery) {
-             return res.status(400).json({ error: "User context (userId or partyId) is required for this request." });
-        }
-    
-        let connection;
-        try {
-            connection = await dbPool.getConnection();
-            let pafsQuery;
-            let queryParams = [];
-    
-            // THIS IS A SIMPLIFIED LOGIC FOR DEMONSTRATION.
-            // Real association logic might be more complex based on user roles and party links.
-            // You'd likely have the user's associated party_id from their user record
-            // or their role to determine how to query.
-    
-            // Scenario 1: User is directly associated with a Party (e.g., represents a List Owner)
-            if (userAssociatedPartyIdForQuery) {
-                pafsQuery = `
-                    SELECT
-                        p.paf_id AS internalDbId, p.licensee_assigned_paf_id AS pafId,
-                        lo_party.company_name AS listOwner,
-                        p.jurisdiction, p.current_status AS status, p.date_issued AS lastUpdated,
-                        p.list_owner_signature_date, p.list_owner_id, p.licensee_signature_date, p.effective_date, p.calculated_expiration_date
-                    FROM pafs p
-                    JOIN parties lo_party ON p.list_owner_id = lo_party.party_id
-                    WHERE p.list_owner_id = ?  -- Assuming user is directly linked to the list owner party
-                       OR p.list_administrator_id = ?
-                       OR EXISTS (SELECT 1 FROM paf_brokers pb WHERE pb.paf_id = p.paf_id AND pb.broker_party_id = ?)
-                    ORDER BY p.date_issued DESC, p.paf_id DESC
-                    LIMIT 20; 
-                `;
-                // This query assumes the partyId passed is the one to check against list_owner, list_admin, or broker.
-                // A more robust solution would get the logged-in user's actual associated party_id from their user record.
-                queryParams = [userAssociatedPartyIdForQuery, userAssociatedPartyIdForQuery, userAssociatedPartyIdForQuery];
-            } else {
-                // Fallback or different logic if only userId is available (less common for PAF association)
-                // This part would need significant thought based on your data model.
-                // For now, let's return an empty array if no partyId is directly associated for simplicity.
-                console.warn("Querying user PAFs without a direct partyId association - returning empty for mock.");
-                return res.json([]);
-            }
-    
-    
-            const [pafsData] = await connection.execute(pafsQuery, queryParams);
-            res.json(pafsData);
-    
-        } catch (error) {
-            console.error('Error fetching user-specific PAFs:', error);
-            res.status(500).json({ error: 'Failed to fetch PAFs. An internal error occurred.' });
-        } finally {
-            if (connection) {
-                connection.release();
-            }
-        }
-    });
     
 // In server.js (paf-system-backend-node)
 app.post('/api/pafs/:pafDbId/approve', async (req, res) => {
@@ -1748,7 +1666,7 @@ app.post('/api/pafs/:pafDbId/approve', async (req, res) => {
         // Determine next status based on jurisdiction (simplified)
         if (currentPaf.jurisdiction === 'FOREIGN') {
             // Assuming LOI was already handled or is next step before USPS approval
-            nextStatus = 'PENDING_USPS_APPROVAL_FOREIGN_ONLY'; // Or PENDING_LICENSEE_SIGNATURE if that's next
+            nextStatus = 'PENDING_LICENSEE_VALIDATION_US_ONLY'; // Or PENDING_LICENSEE_SIGNATURE if that's next
         } else { // US
             nextStatus = 'PENDING_LICENSEE_VALIDATION_US_ONLY'; // Or PENDING_LICENSEE_SIGNATURE
         }
@@ -1858,17 +1776,17 @@ app.get('/api/pafs/details/:pafDbId', async (req, res) => {
                 p.paf_id AS internalDbId,
                 p.licensee_assigned_paf_id AS pafIdDisplay,
                 p.list_owner_id,
-                lo_party.company_name AS listOwnerName,
+                lo_party.company AS listOwnerName,
                 lo_party.address_line1 AS listOwnerAddress1,
                 lo_party.city AS listOwnerCity,
                 lo_party.state AS listOwnerState,
-                lo_party.zip_code AS listOwnerZip,
+                lo_party.zip AS listOwnerZip,
                 lo_party.naics_code AS listOwnerNaics,
                 p.licensee_id,
-                li_party.company_name AS licenseeName,
+                li_party.company AS licenseeName,
                 p.list_administrator_id,
-                la_party.company_name AS listAdminName,
-                (SELECT GROUP_CONCAT(b_party.company_name SEPARATOR ', ')
+                la_party.company AS listAdminName,
+                (SELECT GROUP_CONCAT(b_party.company SEPARATOR ', ')
                     FROM paf_brokers pb
                     JOIN parties b_party ON pb.broker_party_id = b_party.party_id
                     WHERE pb.paf_id = p.paf_id) AS brokerNamesConcatenated,
@@ -1923,7 +1841,7 @@ app.get('/api/pafs/details/:pafDbId', async (req, res) => {
 
         // Fetch associated brokers separately if GROUP_CONCAT is problematic or you need more broker details
         const brokersSql = `
-            SELECT b_party.party_id, b_party.company_name, b_party.naics_code
+            SELECT b_party.party_id, b_party.company, b_party.naics_code
             FROM paf_brokers pb
             JOIN parties b_party ON pb.broker_party_id = b_party.party_id
             WHERE pb.paf_id = ?;
@@ -2052,7 +1970,7 @@ app.get('/api/user/pafs', authenticateUser, async (req, res) => { // Protected
         connection = await dbPool.getConnection();
         const pafsQuery = `
             SELECT p.paf_id AS internalDbId, p.licensee_assigned_paf_id AS pafId,
-                   lo_party.company_name AS listOwner, p.list_owner_id, /* Important for approve button */
+                   lo_party.company AS listOwner, p.list_owner_id, /* Important for approve button */
                    p.jurisdiction, p.current_status AS status, p.date_issued,
                    p.calculated_expiration_date,
                    GREATEST(p.created_at, IFNULL(p.updated_at, p.created_at)) AS lastUpdatedSortable,
@@ -2294,7 +2212,8 @@ app.put('/api/pafs/:pafId/validate-licensee', authenticateAdmin, async (req, res
     // 3. Update the PAF status and potentially other fields
     const newStatus = 'LICENSEE_VALIDATED'; // Or 'PENDING_NCOA_PROCESSING', 'ACTIVE', etc.
     const validatedAt = new Date(); // Timestamp of validation
-
+    const licenseeSignDate = new Date().toISOString().slice(0, 10); // e.g., "2024-07-16"
+   
     const updateQuery = `
       UPDATE pafs 
       SET 
@@ -2304,7 +2223,8 @@ app.put('/api/pafs/:pafId/validate-licensee', authenticateAdmin, async (req, res
         -- licensee_validated_at = ?, -- Audit timestamp
         updated_at = NOW(),
         expiration = ?,
-        full_paf_id = ? -- <<< Set the new expiration date
+        full_paf_id = ?,
+        licensee_sign_date = ? 
  
       WHERE id = ?;
     `;
@@ -2318,6 +2238,7 @@ app.put('/api/pafs/:pafId/validate-licensee', authenticateAdmin, async (req, res
       // validatedAt,            // Example for audit
       expirationDate,
       fullPafId, // Set the new full_paf_id
+      licenseeSignDate,
       
       pafIdToValidate
     ]);
@@ -2368,8 +2289,6 @@ app.put('/api/pafs/:pafId/validate-licensee', authenticateAdmin, async (req, res
     if (connection) connection.release();
   }
 });
-
-
 
 
 
@@ -2489,7 +2408,7 @@ app.post('/api/pafs/:pafDbId/licensee-validate', authenticateUser, async (req, r
         let expectedPreviousStatus;
         let nextStatus;
         if (currentPaf.jurisdiction === 'FOREIGN') {
-            expectedPreviousStatus = 'PENDING_USPS_APPROVAL_FOREIGN_ONLY';
+            expectedPreviousStatus = 'PENDING_USPS_APPROVAL_FOREIGN';
             nextStatus = 'ACTIVE_VALIDATED';
         } else { // US
             expectedPreviousStatus = 'PENDING_LICENSEE_VALIDATION_US_ONLY';
@@ -2590,6 +2509,8 @@ app.get('/api/pafs/:pafId/download-pdf', ensureAuthenticated, async (req, res) =
     if (pafRows.length === 0) return res.status(404).json({ message: 'PAF not found.' });
     const pafData = pafRows[0];
 
+    console.log("Backend PDF Generation: PAF Data",pafData);
+
     // Authorization check (as before)
     // ...
 
@@ -2652,11 +2573,11 @@ app.get('/api/pafs/:pafId/download-pdf', ensureAuthenticated, async (req, res) =
 
     // 4. Fill in the form fields using the names you defined in your template
     // --- LIST OWNER Section ---
-    //fillTextField('Text1', pafData.company_name);
+    //fillTextField('Text1', pafData.company);
     //fillTextField('Text2', pafData.street_address);
     //fillTextField('Text3', pafData.city);
   
-    firstPage.drawText(pafData.company_name || '', {
+    firstPage.drawText(pafData.company || '', {
       x: 40,         // Your calculated X coordinate
       y: 650,  // Your calculated Y coordinate (example conversion from top)
       font: font,
@@ -2664,7 +2585,7 @@ app.get('/api/pafs/:pafId/download-pdf', ensureAuthenticated, async (req, res) =
       color: rgb(0, 0, 0) // Black
     });
  
-    firstPage.drawText(pafData.street_address || '', {
+            firstPage.drawText(pafData.address || '', {
       x: 40,         // Your calculated X coordinate
       y: 624,  // Your calculated Y coordinate (example conversion from top)
       font: font,
@@ -2695,7 +2616,7 @@ app.get('/api/pafs/:pafId/download-pdf', ensureAuthenticated, async (req, res) =
       size: 10,
       color: rgb(0, 0, 0) // Black
     });
-    firstPage.drawText(pafData.zip_code || '', {
+            firstPage.drawText(pafData.zip || '', {
       x: 500,         // Your calculated X coordinate
       y: 596,  // Your calculated Y coordinate (example conversion from top)
       font: font,
@@ -2711,6 +2632,7 @@ app.get('/api/pafs/:pafId/download-pdf', ensureAuthenticated, async (req, res) =
       color: rgb(0, 0, 0) // Black
     });
 
+  
     firstPage.drawText(pafData.list_owner_sic || '', {
       x: 154,         // Your calculated X coordinate
       y: 565,  // Your calculated Y coordinate (example conversion from top)
@@ -2719,6 +2641,22 @@ app.get('/api/pafs/:pafId/download-pdf', ensureAuthenticated, async (req, res) =
       color: rgb(0, 0, 0) // Black
     });
  
+    firstPage.drawText(pafData.parent_company || '', {
+      x: 40,         // Your calculated X coordinate
+      y: 535,  // Your calculated Y coordinate (example conversion from top)
+      font: font,
+      size: 10,
+      color: rgb(0, 0, 0) // Black
+    });
+   
+    firstPage.drawText(pafData.alt_company || '', {
+      x: 40,         // Your calculated X coordinate
+      y: 505,  // Your calculated Y coordinate (example conversion from top)
+      font: font,
+      size: 10,
+      color: rgb(0, 0, 0) // Black
+    });
+
 
     firstPage.drawText(pafData.signer_name || '', {
       x: 40,         // Your calculated X coordinate
@@ -2731,6 +2669,89 @@ app.get('/api/pafs/:pafId/download-pdf', ensureAuthenticated, async (req, res) =
     firstPage.drawText(pafData.signer_title || '', {
       x: 365,         // Your calculated X coordinate
       y: 470,  // Your calculated Y coordinate (example conversion from top)
+      font: font,
+      size: 10,
+      color: rgb(0, 0, 0) // Black
+    });
+
+  //   firstPage.drawText(pafData.list_owner_signature_data || '', {
+  //    x: 40,         // Your calculated X coordinate
+  //    y: 440,  // Your calculated Y coordinate (example conversion from top)
+  //    font: font,
+  //    size: 10,
+  //    color: rgb(0, 0, 0) // Black
+  // });   
+
+
+    const signatureImageFilename = pafData.list_owner_signature_file;
+    const typedSignature = pafData.list_owner_signature_data;
+
+    console.log("PDF Gen: Signature Image Filename:", signatureImageFilename);
+    console.log("PDF Gen: Typed Signature Data:", typedSignature);
+
+  const signatureX = 40; // Your calculated X coordinate
+    const signatureY = 440; // Your calculated Y coordinate
+
+    if (signatureImageFilename) {
+        // --- An image file was provided ---
+        console.log(`PDF Gen: Embedding signature image: ${signatureImageFilename}`);
+        const imagePath = path.join(__dirname, 'public', 'signatures', signatureImageFilename);
+        
+        try {
+            // Read the image file from disk
+            const imageBytes = await fs.readFile(imagePath);
+            
+            // Embed the image into the PDF. We need to know the image type.
+            let embeddedImage;
+            if (signatureImageFilename.toLowerCase().endsWith('.png')) {
+                embeddedImage = await pdfDoc.embedPng(imageBytes);
+            } else if (signatureImageFilename.toLowerCase().endsWith('.jpg') || signatureImageFilename.toLowerCase().endsWith('.jpeg')) {
+                embeddedImage = await pdfDoc.embedJpg(imageBytes);
+            } else {
+                throw new Error('Unsupported signature image format. Use PNG or JPG.');
+            }
+
+            // Get the dimensions of the embedded image
+            const imageDims = embeddedImage.scale(0.25); // Scale the image to 25% of its original size (adjust as needed)
+
+            // Draw the image on the page
+            firstPage.drawImage(embeddedImage, {
+                x: signatureX,
+                y: signatureY - (imageDims.height / 2), // Adjust Y to center the image on the signature line if needed
+                width: imageDims.width,
+                height: imageDims.height,
+            });
+
+        } catch (imageError) {
+            console.error(`PDF Gen: FAILED to embed signature image '${imagePath}'. Drawing text as fallback.`, imageError);
+            // Fallback to drawing text if the image file is missing or corrupt
+            firstPage.drawText(typedSignature || 'SIGNATURE_IMAGE_MISSING', {
+                x: signatureX, y: signatureY, font, size: 10, color: rgb(1, 0, 0) // Draw in red to indicate error
+            });
+        }
+
+    } else if (typedSignature) {
+        // --- A typed signature was provided ---
+        console.log(`PDF Gen: Drawing typed signature: ${typedSignature}`);
+        // You might want to use a cursive font for typed signatures if you embed one
+        const cursiveFont = await pdfDoc.embedFont(StandardFonts.ZapfDingbats); // Placeholder, find a real cursive font to embed
+        firstPage.drawText(typedSignature, {
+            x: signatureX,
+            y: signatureY,
+            font: font, // Replace with cursiveFont if you embed one
+            size: 12,
+            color: rgb(0, 0, 0.8) // Blue to look like ink
+        });
+    }
+
+
+
+
+
+   const dateLOSigned = pafData.list_owner_signature_date.toISOString().split('T')[0];
+   firstPage.drawText(dateLOSigned || '', {
+      x: 365,         // Your calculated X coordinate
+      y: 440,  // Your calculated Y coordinate (example conversion from top)
       font: font,
       size: 10,
       color: rgb(0, 0, 0) // Black
@@ -2756,6 +2777,97 @@ app.get('/api/pafs/:pafId/download-pdf', ensureAuthenticated, async (req, res) =
       color: rgb(0, 0, 0) // Black
     });
 
+    firstPage.drawText(licenseeData.title || '', {
+      x: 323,         // Your calculated X coordinate
+      y: 326,  // Your calculated Y coordinate (example conversion from top)
+      font: font,
+      size: 10,
+      color: rgb(0, 0, 0) // Black
+    });
+
+
+      console.log("PDF Gen: Licensee DATA@@@:", licenseeData);
+ 
+
+    console.log("PDF Gen: Licensee Signature Image Filename:", licenseeData.signature_file);
+
+    if(licenseeData.signature_file != null && licenseeData.signature_file !='')
+    {
+
+       const signatureX = 40; // Your calculated X coordinate
+       const signatureY = 296; // Your calculated Y coordinate
+
+        const imagePath = path.join(__dirname, 'public', 'signatures', licenseeData.signature_file);
+
+        console.log("PDF Gen: Embedding Licensee signature image:", imagePath);
+
+        try {
+            // Read the image file from disk
+            const imageBytes = await fs.readFile(imagePath);
+            
+            // Embed the image into the PDF. We need to know the image type.
+            let embeddedImage;
+            if (imagePath.toLowerCase().endsWith('.png')) {
+                embeddedImage = await pdfDoc.embedPng(imageBytes);
+            } else if (imagePath.toLowerCase().endsWith('.jpg') || imagePath.toLowerCase().endsWith('.jpeg')) {
+                embeddedImage = await pdfDoc.embedJpg(imageBytes);
+            } else {
+                throw new Error('Unsupported signature image format. Use PNG or JPG.');
+            }
+
+            // Get the dimensions of the embedded image
+            const imageDims = embeddedImage.scale(0.24); // Scale the image to 25% of its original size (adjust as needed)
+
+            // Draw the image on the page
+            firstPage.drawImage(embeddedImage, {
+                x: signatureX,
+                y: signatureY-2 , // Adjust Y to center the image on the signature line if needed
+                width: imageDims.width,
+                height: imageDims.height,
+            });
+
+        } catch (imageError) {
+            console.error(`PDF Gen: FAILED to embed signature image '${imagePath}'. Drawing text as fallback.`, imageError);
+            // Fallback to drawing text if the image file is missing or corrupt
+            firstPage.drawText(typedSignature || 'SIGNATURE_IMAGE_MISSING', {
+                x: signatureX, y: signatureY, font, size: 10, color: rgb(1, 0, 0) // Draw in red to indicate error
+            });
+        }
+
+
+
+
+    }      
+
+
+
+    const licString = pafData.list_owner_signature_date.toISOString().split('T')[0];
+
+    firstPage.drawText(licString || '', {
+      x: 323,         // Your calculated X coordinate
+      y: 296,  // Your calculated Y coordinate (example conversion from top)
+      font: font,
+      size: 10,
+      color: rgb(0, 0, 0) // Black
+    });
+
+
+    firstPage.drawText(licenseeData.phone_number || '', {
+      x: 40,         // Your calculated X coordinate
+      y: 270,  // Your calculated Y coordinate (example conversion from top)
+      font: font,
+      size: 10,
+      color: rgb(0, 0, 0) // Black
+    });
+ 
+    firstPage.drawText(licenseeData.fax_number || '', {
+      x: 323,         // Your calculated X coordinate
+      y: 270,  // Your calculated Y coordinate (example conversion from top)
+      font: font,
+      size: 10,
+      color: rgb(0, 0, 0) // Black
+    });
+ 
 
 
     if(agentData)
@@ -2806,7 +2918,7 @@ app.get('/api/pafs/:pafId/download-pdf', ensureAuthenticated, async (req, res) =
     });
  
 
-    const cityline = agentData.city + ', ' + agentData.state + ' ' + agentData.zip_code;
+          const cityline = agentData.city + ', ' + agentData.state + ' ' + agentData.zip;
     firstPage.drawText(cityline || '', {
       x: 410,         // Your calculated X coordinate
       y: 192,  // Your calculated Y coordinate (example conversion from top)
@@ -2834,6 +2946,66 @@ app.get('/api/pafs/:pafId/download-pdf', ensureAuthenticated, async (req, res) =
       color: rgb(0, 0, 0) // Black
     });
  
+
+    if(agentData.signature_file != null && agentData.signature_file !='')
+    {
+
+   const signatureX = 40; // Your calculated X coordinate
+       const signatureY = 133; // Your calculated Y coordinate
+
+        const imagePath = path.join(__dirname, 'public', 'signatures', agentData.signature_file);
+
+        console.log("PDF Gen: Embedding Licensee signature image:", imagePath);
+
+        try {
+            // Read the image file from disk
+            const imageBytes = await fs.readFile(imagePath);
+            
+            // Embed the image into the PDF. We need to know the image type.
+            let embeddedImage;
+            if (imagePath.toLowerCase().endsWith('.png')) {
+                embeddedImage = await pdfDoc.embedPng(imageBytes);
+            } else if (imagePath.toLowerCase().endsWith('.jpg') || imagePath.toLowerCase().endsWith('.jpeg')) {
+                embeddedImage = await pdfDoc.embedJpg(imageBytes);
+            } else {
+                throw new Error('Unsupported signature image format. Use PNG or JPG.');
+            }
+
+            // Get the dimensions of the embedded image
+            const imageDims = embeddedImage.scale(0.24); // Scale the image to 25% of its original size (adjust as needed)
+
+            // Draw the image on the page
+            firstPage.drawImage(embeddedImage, {
+                x: signatureX,
+                y: signatureY-2 , // Adjust Y to center the image on the signature line if needed
+                width: imageDims.width,
+                height: imageDims.height,
+            });
+
+        } catch (imageError) {
+            console.error(`PDF Gen: FAILED to embed signature image '${imagePath}'. Drawing text as fallback.`, imageError);
+            // Fallback to drawing text if the image file is missing or corrupt
+            firstPage.drawText(typedSignature || 'SIGNATURE_IMAGE_MISSING', {
+                x: signatureX, y: signatureY, font, size: 10, color: rgb(1, 0, 0) // Draw in red to indicate error
+            });
+        }
+
+
+
+    }
+
+    else
+    {
+      firstPage.drawText(bname || '', {
+        x: 40,         // Your calculated X coordinate
+        y: 133,  // Your calculated Y coordinate (example conversion from top)
+        font: font,
+        size: 10,
+        color: rgb(0, 0, 0) // Black
+      });
+
+    }
+
 
     const dateString = pafData.agent_signed_date.toISOString().split('T')[0];
 
@@ -2870,12 +3042,43 @@ app.get('/api/pafs/:pafId/download-pdf', ensureAuthenticated, async (req, res) =
       x: 72,         // Your calculated X coordinate
       y: 44,  // Your calculated Y coordinate (example conversion from top)
       font: font,
-      size: 10,
+      size: 8,
       color: rgb(0, 0, 0) // Black
     }); 
 
+//  firstPage.drawImage(    (pafData.full_paf_id || '', {
+//      x: 72,         // Your calculated X coordinate
+//      y: 44,  // Your calculated Y coordinate (example conversion from top)
+//      font: font,
+//      size: 8,
+//      color: rgb(0, 0, 0) // Black
+//    }); 
 
+    if(agentData)
+      {
+      if(agentData.broker_list_admin =='broker')
+      {
+    firstPage.drawText(agentData.uspsID || '', {
+      x: 290,         // Your calculated X coordinate
+      y: 44,  // Your calculated Y coordinate (example conversion from top)
+      font: font,
+      size: 8,
+      color: rgb(0, 0, 0) // Black
+    });
     
+  }
+  else{
+
+    firstPage.drawText(agentData.uspsID || '', {
+      x: 493,         // Your calculated X coordinate
+      y: 44,  // Your calculated Y coordinate (example conversion from top)
+      font: font,
+      size: 8,
+      color: rgb(0, 0, 0) // Black
+    }); 
+  }
+      }
+
     form.flatten();
 
     // 5. Serialize the PDF to bytes
@@ -2889,235 +3092,6 @@ app.get('/api/pafs/:pafId/download-pdf', ensureAuthenticated, async (req, res) =
 
     //    res.setHeader('Content-Disposition', `attachment; filename="PAF_${pafData.list_owner_id}.pdf"`);
     
-    res.end(pdfBytes);
-
-  } catch (error) {
-    console.error(`Error generating PDF for PAF ID ${pafIdToFetch}:`, error);
-    res.status(500).json({ message: 'Failed to generate PDF.' });
-  } finally {
-    if (connection) connection.release();
-  }
-});
-
-
-app.get('/api/pafs/:pafId/download-pdfxxx', ensureAuthenticated, async (req, res) => {
-  const pafIdToFetch = parseInt(req.params.pafId, 10);
-  const loggedInUser = req.session.user;
-  console.log(`Backend PDF Generation: Request for PAF ID ${pafIdToFetch} by User ID ${loggedInUser.id}`);
-
-  if (isNaN(pafIdToFetch)) {
-    return res.status(400).json({ message: 'Invalid PAF ID.' });
-  }
-
-  let connection;
-  try {
-    connection = await dbPool.getConnection();
-
-    // --- Query 1: Fetch the main PAF data ---
-    console.log(`PDF Gen: Fetching main PAF record for ID: ${pafIdToFetch}`);
-    const [pafRows] = await connection.execute('SELECT * FROM pafs WHERE id = ?', [pafIdToFetch]);
-
-    if (pafRows.length === 0) {
-      return res.status(404).json({ message: 'PAF not found.' });
-    }
-    const pafData = pafRows[0]; // This is the main object with all PAF fields
-    
-    // --- Authorization Check (still important) ---
-    // (Your existing authorization logic here, comparing loggedInUser.id, loggedInUser.role, etc. with pafData.licensee_id, pafData.created_by_user_id)
-    // ...
-
-    // --- Query 2: Fetch Licensee Admin User Details (if licensee_id exists) ---
-    let licenseeData = null; // Default to null
-    if (pafData.licensee_id) {
-        console.log(`PDF Gen: Fetching Licensee Admin user details for user ID: ${pafData.licensee_id}`);
-        // Select only the columns you need from the users table for the licensee
-        const licenseeQuery = 'SELECT licensee_name, first_name, last_name, phone_number FROM users WHERE id = ?';
-        const [licenseeRows] = await connection.execute(licenseeQuery, [pafData.licensee_id]);
-        if (licenseeRows.length > 0) {
-            licenseeData = licenseeRows[0];
-        } else {
-            console.warn(`PDF Gen: Licensee Admin with ID ${pafData.licensee_id} not found in users table.`);
-        }
-    }
-
-    // --- Query 3: Fetch Agent User Details (if agent_id exists) ---
-    let agentData = null; // Default to null
-    if (pafData.agent_id) {
-        console.log(`PDF Gen: Fetching Agent user details for user ID: ${pafData.agent_id}`);
-        // Select only the columns you need from the users table for the agent
-        const agentQuery = 'SELECT licensee_name, first_name, last_name, street_address, city, state, zip_code, phone_number FROM users WHERE id = ?';
-        const [agentRows] = await connection.execute(agentQuery, [pafData.agent_id]);
-        if (agentRows.length > 0) {
-            agentData = agentRows[0];
-        } else {
-            console.warn(`PDF Gen: Agent with ID ${pafData.agent_id} not found in users table.`);
-        }
-    }
-
-    // --- PDF Generation Logic (Now use data from all three objects) ---
-    const pdfDoc = await PDFDocument.create();
-    const page = pdfDoc.addPage();
-    const { width, height } = page.getSize();
-    const font = await pdfDoc.embedFont(StandardFonts.Helvetica);
-    const fontSize = 10;
-    
-    const drawText = (text, x, y, size = fontSize) => {
-      page.drawText(text || '', { x, y, font, size, color: rgb(0, 0, 0) });
-    };
-
-    // --- Populate PDF with data from pafData, licenseeData, and agentData ---
-    
-    // List Owner Section (from pafData)
-    drawText(pafData.company_name, 72, height - 125);
-    drawText(pafData.street_address, 72, height - 150);
-    // ... and so on for all fields from pafData ...
-    drawText(pafData.signer_name, 72, height - 300);
-    drawText(pafData.signer_title, 350, height - 300);
-    drawText(pafData.date_signed ? new Date(pafData.date_signed).toLocaleDateString() : '', 500, height - 325);
-
-    // Licensee Section (from licenseeData, with fallbacks)
-    drawText(licenseeData?.licensee_name || '', 72, height - 375);
-    drawText(`${licenseeData?.first_name || ''} ${licenseeData?.last_name || ''}`, 72, height - 400);
-    drawText(licenseeData?.telephone || '', 72, height - 450);
-
-    // Broker/Agent Section (from agentData, with fallbacks)
-    if (agentData) { // Only draw if agentData was successfully fetched
-        // Check a box for BROKER/AGENT here
-        drawText(agentData.licensee_name || agentData.first_name + ' ' + agentData.last_name, 72, height - 520); // Agent company name or person name
-        drawText(agentData.street_address || '', 72, height - 545);
-        drawText(`${agentData.city || ''}, ${agentData.state || ''} ${agentData.zip_code || ''}`, 72, height - 570); // Combined city/state/zip
-        drawText(agentData.telephone || '', 72, height - 595);
-    }
-    
-    // --- Serialize and Send PDF ---
-    const pdfBytes = await pdfDoc.save();
-    res.setHeader('Content-Length', pdfBytes.length);
-    res.setHeader('Content-Type', 'application/pdf');
-    res.setHeader('Content-Disposition', `attachment; filename="PAF_${pafData.id}_${pafData.list_owner_id}.pdf"`);
-    res.end(pdfBytes);
-
-  } catch (error) {
-    console.error(`Error generating PDF for PAF ID ${pafIdToFetch}:`, error);
-    res.status(500).json({ message: 'Failed to generate PDF.' });
-  } finally {
-    if (connection) connection.release();
-  }
-});
-
-// --- NEW ENDPOINT: GET /api/pafs/:pafId/download-pdf ---
-app.get('/api/pafs/:pafId/xxxdownload-pdf', ensureAuthenticated, async (req, res) => {
-  const pafIdToFetch = parseInt(req.params.pafId, 10);
-  const loggedInUser = req.session.user;
-  console.log(`Backend PDF Generation: Request for PAF ID ${pafIdToFetch} by User ID ${loggedInUser.id}`);
-
-  if (isNaN(pafIdToFetch)) {
-    return res.status(400).json({ message: 'Invalid PAF ID.' });
-  }
-
-  let connection;
-  try {
-    connection = await dbPool.getConnection();
-
-    // 1. Fetch all necessary data for the PAF in one go
-    // This query is similar to the one for the view details page
-    const query = `
-      SELECT 
-        p.*, -- Get all fields from the pafs table
-        u_licensee.licensee_name AS licensee_company_name,
-        u_licensee.first_name AS licensee_first_name,
-        u_licensee.last_name AS licensee_last_name,
-        u_licensee.telephone AS licensee_telephone,
-        u_agent.licensee_name AS agent_company_name, -- Assuming agent info is on their user record
-        u_agent.first_name AS agent_first_name,
-        u_agent.last_name AS agent_last_name,
-        u_agent.street_address AS agent_address,
-        u_agent.city AS agent_city,
-        u_agent.state AS agent_state,
-        u_agent.zip_code AS agent_zip_code,
-        u_agent.telephone AS agent_telephone
-      FROM pafs p
-      LEFT JOIN users u_licensee ON p.licensee_id = u_licensee.id
-      LEFT JOIN users u_agent ON p.agent_id = u_agent.id
-      WHERE p.id = ?;
-    `;
-    const [pafRows] = await connection.execute(query, [pafIdToFetch]);
-
-    if (pafRows.length === 0) {
-      return res.status(404).json({ message: 'PAF not found.' });
-    }
-    const pafData = pafRows[0];
-    
-    // Authorization Check (similar to view details)
-    if (loggedInUser.role !== 'ADMIN' || pafData.licensee_id !== loggedInUser.id) {
-       // A more complex check might be needed if non-admins can access
-       // For now, only the responsible admin can generate the PDF
-       if (loggedInUser.id !== pafData.created_by_user_id && loggedInUser.created_by_admin_id !== pafData.licensee_id) {
-           return res.status(403).json({ message: 'Forbidden: You are not authorized to access this PAF.' });
-       }
-    }
-
-
-    // 2. Create a new PDF document
-    const pdfDoc = await PDFDocument.create();
-    const page = pdfDoc.addPage(); // Adds a standard US Letter page
-    const { width, height } = page.getSize();
-    const font = await pdfDoc.embedFont(StandardFonts.Helvetica);
-    const fontSize = 10;
-    
-    // Helper function for drawing text
-    const drawText = (text, x, y, size = fontSize) => {
-      page.drawText(text || '', { x, y, font, size, color: rgb(0, 0, 0) });
-    };
-
-    // 3. Populate the PDF with data from pafData
-    // IMPORTANT: These (x, y) coordinates are ESTIMATES. You will need to fine-tune them
-    // to match the layout of your form. (0, 0) is the bottom-left corner.
-    
-    // --- LIST OWNER Section ---
-    drawText(pafData.company_name, 72, height - 125);
-    drawText(pafData.street_address, 72, height - 150);
-    drawText(pafData.city, 72, height - 175);
-    drawText(pafData.state, 350, height - 175);
-    drawText(`${pafData.zip_code || ''} - ${pafData.zip4 || ''}`, 450, height - 175);
-    drawText(pafData.telephone, 72, height - 200);
-    drawText(pafData.list_owner_sic, 250, height - 200); // NAICS
-    drawText(pafData.mailer_id, 350, height - 200);      // USPS Mailer ID
-    drawText(pafData.list_owner_crid, 450, height - 200); // CRID
-    drawText(pafData.signer_email, 500, height - 200);   // Email
-    drawText(pafData.parent_company, 72, height - 225);
-    drawText(pafData.alternate_company_name, 72, height - 250);
-    // ... signature section
-    drawText(pafData.signer_name, 72, height - 300);
-    drawText(pafData.signer_title, 350, height - 300);
-    // Signature would be blank here, to be physically signed
-    drawText(pafData.date_signed ? new Date(pafData.date_signed).toLocaleDateString() : '', 500, height - 325);
-
-
-    // --- LICENSEE Section ---
-    drawText(pafData.licensee_company_name, 72, height - 375); // Fetched from users table
-    drawText(`${pafData.licensee_first_name || ''} ${pafData.licensee_last_name || ''}`, 72, height - 400);
-    // Signature line is blank
-    drawText(pafData.licensee_telephone, 72, height - 450);
-    // Date would be the date the licensee approved it, if you store that
-    // drawText(pafData.licensee_validated_at ? new Date(pafData.licensee_validated_at).toLocaleDateString() : '', 500, height - 425);
-
-
-    // --- BROKER/AGENT Section ---
-    if (pafData.agent_id) {
-        // Here you would check a box or indicate Broker/Agent is used
-        drawText(pafData.agent_company_name, 72, height - 520);
-        drawText(pafData.agent_address, 72, height - 545);
-        // ... and so on for all agent fields
-    }
-
-
-    // 4. Serialize the PDF to bytes
-    const pdfBytes = await pdfDoc.save();
-
-    // 5. Send the PDF as a response for download
-    res.setHeader('Content-Length', pdfBytes.length);
-    res.setHeader('Content-Type', 'application/pdf');
-    res.setHeader('Content-Disposition', `attachment; filename="PAF_${pafData.id}_${pafData.list_owner_id}.pdf"`);
     res.end(pdfBytes);
 
   } catch (error) {
@@ -3226,15 +3200,20 @@ app.put('/api/users/:userId', ensureAuthenticated, async (req, res) => {
       UPDATE users SET
         first_name = ?, last_name = ?, email = ?, role = ?, broker_list_admin = ?,
         licensee_name = ?, sic = ?, street_address = ?, city = ?, state = ?, 
-        zip_code = ?, phone_number = ?,
+        zip = ?, phone_number = ?,
         updated_at = NOW()
       WHERE id = ?;
     `;
+    
+    console.log("update user sql",updateQuery);
+
+    console.log
+
     await connection.execute(updateQuery, [
       updatedData.firstName, updatedData.lastName, updatedData.email, updatedData.role, updatedData.brokerListAdmin,
       updatedData.licenseeName, updatedData.SIC, updatedData.streetAddress, updatedData.city, updatedData.state,
-      updatedData.zipCode, updatedData.phoneNumber,
-      userIdToUpdate
+      updatedData.zip, updatedData.phoneNumber,updatedData.id
+      
     ]);
 
     await connection.commit();
@@ -3380,7 +3359,7 @@ app.get('/api/export/pafs-csv', authenticateAdmin, async (req, res) => {
 // mypafreact/paf-system-backend-node/server.js
 // ... (imports: express, cors, mysql, session, authenticateAdmin) ...
 
-// ... (your existing routes) ...
+// ... (other routes) ...
 
 // --- NEW ENDPOINT: GET /api/export/users-csv ---
 app.get('/api/export/users-csv', authenticateAdmin, async (req, res) => {
@@ -3400,7 +3379,7 @@ app.get('/api/export/users-csv', authenticateAdmin, async (req, res) => {
     const query = `
       SELECT 
         u.id, u.first_name, u.last_name, u.email, u.role, u.broker_list_admin,
-        u.usps_license_id, u.licensee_name, u.street_address, u.city, u.state, u.zip_code, u.phone_number,
+        u.usps_license_id, u.licensee_name, u.street_address, u.city, u.state, u.zip, u.phone_number,
         u.created_by_admin_id, u.created_at
       FROM users u
       LEFT JOIN users creator_admin ON u.created_by_admin_id = creator_admin.id
@@ -3415,7 +3394,7 @@ app.get('/api/export/users-csv', authenticateAdmin, async (req, res) => {
     }
 
     // Define the fields and headers for the CSV
-    const fields = ['id', 'first_name', 'last_name', 'email', 'role', 'broker_list_admin', 'usps_license_id', 'licensee_name', 'street_address', 'city', 'state', 'zip_code', 'phone_number', 'created_by_admin_id', 'created_at'];
+    const fields = ['id', 'first_name', 'last_name', 'email', 'role', 'broker_list_admin', 'usps_license_id', 'licensee_name', 'street_address', 'city', 'state', 'zip', 'phone_number', 'created_by_admin_id', 'created_at'];
     const json2csvParser = new Parser({ fields });
     const csv = json2csvParser.parse(users);
 
@@ -3450,7 +3429,7 @@ app.put('/api/pafs/:pafId', ensureAuthenticated, async (req, res) => {
   }
 
   // --- Basic Validation ---
-  if (!updatedData.companyName || !updatedData.listName || !updatedData.signerName || !updatedData.signerTitle ) {
+  if (!updatedData.company || !updatedData.listName || !updatedData.signerName || !updatedData.signerTitle ) {
     return res.status(400).json({ message: 'Company Name, List Name, Signer Name and Signer Title, are required.' });
   }
 
@@ -3471,16 +3450,16 @@ app.put('/api/pafs/:pafId', ensureAuthenticated, async (req, res) => {
     // 2. Authorization Check (e.g., only creator or licensee admin can edit)
     if (loggedInUser.role !== 'ADMIN' && pafToUpdate.created_by_user_id !== loggedInUser.id) {
         await connection.rollback();
-        return res.status(403).json({ message: 'Forbidden: You are not authorized to edit this PAF.' });
+        return res.status(403).json({ message: 'Forbidden: You are not authorized to edit thisx PAF.' });
     }
-    if (loggedInUser.role === 'ADMIN' && pafToUpdate.licensee_id !== loggedInUser.id) {
+  /*   if (loggedInUser.role === 'ADMIN' && pafToUpdate.licensee_id !== loggedInUser.id) {
         // Also check if admin is creator, if so allow edit
         if(pafToUpdate.created_by_user_id !== loggedInUser.id){
             await connection.rollback();
             return res.status(403).json({ message: 'Forbidden: You are not authorized to edit this PAF.' });
         }
     }
-
+ */
     //  calculate expired off date signed 
 
     const date = new Date(updatedData.dateSigned);
@@ -3496,21 +3475,21 @@ app.put('/api/pafs/:pafId', ensureAuthenticated, async (req, res) => {
     // The list_owner_id is NOT updated. It's carried forward.
     const updateQuery = `
       UPDATE pafs SET
-        list_owner_sic = ?, company_name = ?, parent_company = ?, alternate_company_name = ?,
-        street_address = ?, city = ?, state = ?, zip_code = ?, zip4 = ?,
+        list_owner_sic = ?, company = ?, parent_company = ?, alt_company = ?,
+        address = ?, city = ?, state = ?, zip = ?, zip4 = ?,
         telephone = ?, fax_number = ?, urbanization = ?, list_owner_crid = ?, mailer_id = ?,
         signer_name = ?, signer_title = ?, signer_email = ?, 
-        list_name = ?, frequency = ?, jurisdiction = ?, notes = ?,
+        list_name = ?, freq_proc = ?, jurisdiction = ?, notes = ?,
         agent_id = ?, agent_signed_date = ?,paf_type = 'M',
         updated_at = NOW()
       WHERE id = ?;
     `;
     await connection.execute(updateQuery, [
-      updatedData.listOwnerSic || null, updatedData.companyName, updatedData.parentCompany || null, updatedData.alternateCompanyName || null,
+      updatedData.listOwnerSic || null, updatedData.company, updatedData.parentCompany || null, updatedData.alternateCompanyName || null,
       updatedData.streetAddress || null, updatedData.city || null, updatedData.state || null, updatedData.zipCode || null, updatedData.zip4 || null,
       updatedData.telephone || null, updatedData.faxNumber || null, updatedData.urbanization || null, updatedData.listOwnerCrid || null, updatedData.mailerId || null,
       updatedData.signerName, updatedData.signerTitle, updatedData.signerEmail || null, 
-      updatedData.listName, updatedData.frequency || null, updatedData.jurisdiction, updatedData.notes || null,
+      updatedData.listName, updatedData.freqProc || null, updatedData.jurisdiction, updatedData.notes || null,
       updatedData.agentId || null, updatedData.agentSignedDate || null,
       pafIdToUpdate
     ]);
@@ -3578,7 +3557,7 @@ app.get('/api/pafs/:pafId/history', ensureAuthenticated, async (req, res) => {
     
     // Authorization Check (same as view/edit logic) - ensure user can see this PAF's history
     let authorized = false;
-    if (loggedInUser.role === 'ADMIN' && pafToAuth.licensee_id === loggedInUser.id) authorized = true;
+    if (loggedInUser.role === 'ADMIN' ) authorized = true;
     if (pafToAuth.created_by_user_id === loggedInUser.id) authorized = true;
     if (loggedInUser.role !== 'ADMIN' && pafToAuth.licensee_id === loggedInUser.created_by_admin_id) authorized = true;
     
@@ -3796,7 +3775,7 @@ const formatSqlNumericChar = (str, length) => {
 
 
 // --- NEW ENDPOINT: GET /api/pafs/:pafId/migrate-sql ---
-app.get('/api/pafs/:pafId/migrate-sql', authenticateAdmin, async (req, res) => {
+app.get('/api/pafs/:pafId/migrate-sql', ensureAuthenticated, async (req, res) => {
   const pafIdToMigrate = parseInt(req.params.pafId, 10);
   console.log(`Backend /api/pafs/${pafIdToMigrate}/migrate-sql: Request by admin ID ${req.session.user.id}`);
 
@@ -3821,12 +3800,17 @@ app.get('/api/pafs/:pafId/migrate-sql', authenticateAdmin, async (req, res) => {
       LEFT JOIN users u_agent ON p.agent_id = u_agent.id
       WHERE p.id = ?;
     `;
+
+    console.log(`Backend /api/pafs/${pafIdToMigrate}/migrate-sql: Query:`, query);
+
     const [pafRows] = await connection.execute(query, [pafIdToMigrate]);
 
     if (pafRows.length === 0) {
       return res.status(404).json({ message: 'PAF not found.' });
     }
     const pafData = pafRows[0];
+
+    console.log(`Backend /api/pafs/${pafIdToMigrate}/migrate-sql: PAF data:`, pafData);
     
     // --- Construct the SQL INSERT Statement ---
     // Mapping your current 'pafs' table fields to the target table fields
@@ -3844,11 +3828,11 @@ INSERT INTO ${targetTableName} (
   ${formatSqlChar(pafData.list_owner_sic, 6)}, -- list_owner_sic
   ${formatSqlChar(pafData.frequency, 2)}, -- freq_proc
   ${formatSqlChar(pafData.list_owner_id, 6)}, -- list_owner_id (your 6-char formatted ID)
-  ${formatSqlChar(pafData.company_name, 50)}, -- company
-  ${formatSqlChar(pafData.street_address, 50)}, -- address
+  ${formatSqlChar(pafData.company, 50)}, -- company
+          ${formatSqlChar(pafData.address, 50)}, -- address
   ${formatSqlChar(pafData.city, 28)}, -- city
   ${formatSqlChar(pafData.state, 2)}, -- state
-  ${formatSqlChar(pafData.zip_code, 9)}, -- zip
+          ${formatSqlChar(pafData.zip, 9)}, -- zip
   ${formatSqlChar(pafData.zip4, 4)}, -- zip4
   ${formatSqlNumericChar(pafData.telephone, 10)}, -- telephone (digits only)
   ${formatSqlChar(pafData.signer_name, 50)}, -- sign_name
@@ -3858,7 +3842,7 @@ INSERT INTO ${targetTableName} (
   ${formatSqlChar(pafData.list_name, 32)}, -- list_name
   ${formatSqlChar(pafData.mailer_id, 15)}, -- postal_id (mapping to mailer_id)
   ${formatSqlChar(pafData.parent_company, 50)}, -- parent_company
-  ${formatSqlChar(pafData.alternate_company_name, 50)}, -- alt_company
+          ${formatSqlChar(pafData.alt_company, 50)}, -- alt_company
   ${formatSqlChar(pafData.agent_id, 6)}, -- broker_id (mapping to agent_id, which is a user.id - you may need to format this differently)
   ${formatDateToMMDDYYYY(pafData.agent_signed_date)}, -- sign_broker_date
   ${formatSqlNumericChar(pafData.fax_number, 10)}, -- fax (digits only)
@@ -3879,6 +3863,445 @@ INSERT INTO ${targetTableName} (
     if (connection) connection.release();
   }
 });
+
+
+app.put('/api/pafs/:pafId/usps-approve', authenticateAdmin, async (req, res) => {
+  const pafIdToApprove = parseInt(req.params.pafId, 10);
+  const loggedInAdmin = req.session.user;
+  const { notes } = req.body; // Optional notes from the confirmation dialog
+
+  console.log(`Backend /api/pafs/${pafIdToApprove}/usps-approve: `);
+  console.log("loggedInAdmin: ", loggedInAdmin);
+
+  if (isNaN(pafIdToApprove)) {
+    return res.status(400).json({ message: 'Invalid PAF ID format.' });
+  }
+
+  let connection;
+  try {
+    connection = await dbPool.getConnection();
+    await connection.beginTransaction();
+
+    // 1. Fetch PAF to verify status and scope
+    const [pafRows] = await connection.execute('SELECT * FROM pafs WHERE id = ?', [pafIdToApprove]);
+    if (pafRows.length === 0) {
+      await connection.rollback();
+      return res.status(404).json({ message: 'PAF not found.' });
+    }
+    const pafToApprove = pafRows[0];
+    console.log("pafToApprove: ", pafToApprove);
+
+    // 2. Authorization (ensure admin is responsible for this PAF)
+    if (pafToApprove.licensee_id !== loggedInAdmin.uspsLicenseId) {
+      await connection.rollback();
+      return res.status(403).json({ message: 'Forbidden: You are not authorized for this PAF.' });
+    }
+
+    // 3. Status Check
+    if (pafToApprove.status !== 'PENDING_USPS_APPROVAL_FOREIGN') {
+      await connection.rollback();
+      return res.status(400).json({ message: `PAF is not in the correct state for USPS approval. Current status: ${pafToApprove.status}` });
+    }
+
+    // 4. Determine the next status in the workflow
+    // After USPS approval, it would then go to Agent Approval (if assigned) or List Owner Approval (if no agent).
+    const nextStatus = pafToApprove.agent_id ? 'PENDING_AGENT_APPROVAL' : 'PENDING_LIST_OWNER_APPROVAL';
+
+    // 5. Update the PAF record
+    const updateQuery = `UPDATE pafs SET status = ?, updated_at = NOW() WHERE id = ?;`;
+    await connection.execute(updateQuery, [nextStatus, pafIdToApprove]);
+
+    // 6. Add a history record
+    const historyNotes = `USPS approval confirmed by admin ${loggedInAdmin.email}. ${notes || ''}`.trim();
+    const historyQuery = `INSERT INTO paf_status_history (paf_id, status, notes, changed_by_user_id, changed_at) VALUES (?, ?, ?, ?, NOW());`;
+    await connection.execute(historyQuery, [pafIdToApprove, nextStatus, historyNotes, loggedInAdmin.id]);
+
+    await connection.commit();
+
+    // 7. Fetch and return the updated PAF
+    const [updatedPafRows] = await connection.execute('SELECT * FROM pafs WHERE id = ?', [pafIdToApprove]);
+    // ... (map to camelCase) ...
+    res.status(200).json({ message: 'USPS approval confirmed. PAF has moved to the next step.', paf: updatedPafRows[0] });
+
+  } catch (error) {
+    if (connection) { try { await connection.rollback(); } catch(e) {} }
+    console.error(`Error during USPS approval for PAF ${pafIdToApprove}:`, error);
+    res.status(500).json({ message: 'Server error during USPS approval.' });
+  } finally {
+    if (connection) connection.release();
+  }
+});
+
+
+const formatSqlCharx = (str, length) => {
+  if (str === null || str === undefined) return 'NULL';
+  let sanitized = String(str).replace(/'/g, "''");
+  if (sanitized.length > length) sanitized = sanitized.substring(0, length);
+  return `'${sanitized}'`;
+};
+const formatDateToMMDDYYYYx = (dateString) => {
+    if (!dateString) return 'NULL';
+    try {
+
+      console.log("formatDateToMMDDYYYY")
+        const date = new Date(dateString );
+        if (isNaN(date.getTime())) return 'NULL';
+ 
+        console.log("formatDateToMMDDYYYY2")
+ 
+        const month = String(date.getUTCMonth() + 1).padStart(2, '0');
+        const day = String(date.getUTCDate()).padStart(2, '0');
+        const year = date.getUTCFullYear();
+        return `${year}${month}${day}`;
+    } catch (e) { return 'NULL'; }
+};
+const formatSqlNumericCharx = (str, length) => {
+    if (str === null || str === undefined) return 'NULL';
+    let digitsOnly = String(str).replace(/\D/g, '');
+    if (digitsOnly.length > length) digitsOnly = digitsOnly.substring(0, length);
+    return `'${digitsOnly}'`;
+};
+
+
+
+app.post('/api/pafs/:pafId/export-to-ncoams', authenticateAdmin, async (req, res) => {
+  const pafIdToExport = parseInt(req.params.pafId, 10);
+  console.log(`Backend /export-to-ncoams: Request for PAF ID ${pafIdToExport}`);
+
+  if (isNaN(pafIdToExport)) {
+    return res.status(400).json({ message: 'Invalid PAF ID.' });
+  }
+
+  let connection;
+  try {
+    connection = await dbPool.getConnection();
+    await connection.beginTransaction(); // <<< START TRANSACTION
+
+    const sourceQuery = `
+      SELECT 
+        p.*,
+        u_licensee.usps_license_id AS licensee_platform_id,
+        u_agent.id AS agent_user_id,
+        u_agent.sic AS agent_sic
+      FROM pafs p
+      LEFT JOIN users u_licensee ON p.licensee_id = u_licensee.id
+      LEFT JOIN users u_agent ON p.agent_id = u_agent.id
+      WHERE p.id = ?;
+    `;
+
+    // 1. Fetch the source PAF data from your current database (paf_management_db)
+    // ... (your existing query to get sourcePaf data) ...
+    const [pafRows] = await connection.execute(sourceQuery, [pafIdToExport]);
+    if (pafRows.length === 0) {
+      await connection.rollback();
+      return res.status(404).json({ message: 'Source PAF not found.' });
+    }
+    const sourcePaf = pafRows[0];
+
+    console.log("source PAF",sourcePaf)
+
+    // --- ARCHIVE-THEN-REPLACE LOGIC ---
+
+    // 2. Check if a record with this list_owner_id exists in the target table
+    const listOwnerIdToExport = sourcePaf.list_owner_id;
+    console.log("list owner id:",listOwnerIdToExport)
+    
+    const checkQuery = 'SELECT * FROM ncoams.paf_cust_info WHERE list_owner_id = ?';
+    const [existingRows] = await connection.execute(checkQuery, [listOwnerIdToExport]);
+
+    if (existingRows.length > 0) {
+      // Record EXISTS. We must archive it and then delete it.
+      const existingRecord = existingRows[0];
+      console.log(`Export to NCOAMS: Found existing record for list_owner_id ${listOwnerIdToExport}. Archiving...`);
+
+      // 3. Copy the existing record to the archive table.
+      // We can do this by constructing an INSERT statement from the fetched record.
+      // This is safer than INSERT ... SELECT in case columns don't perfectly match or have defaults.
+      const columns = Object.keys(existingRecord).join(', ');
+      const placeholders = Object.keys(existingRecord).map(() => '?').join(', ');
+      const values = Object.values(existingRecord);
+      
+      const archiveQuery = `INSERT INTO ncoams.paf_cust_info_archive (${columns}) VALUES (${placeholders})`;
+      await connection.execute(archiveQuery, values);
+      console.log(`Export to NCOAMS: Successfully copied record to paf_cust_info_archive.`);
+
+      // 4. Delete the original record from the paf_cust_info table
+      const deleteQuery = 'DELETE FROM ncoams.paf_cust_info WHERE list_owner_id = ?';
+      await connection.execute(deleteQuery, [listOwnerIdToExport]);
+      console.log(`Export to NCOAMS: Successfully deleted original record from paf_cust_info.`);
+    } 
+    
+    else {
+      console.log(`Export to NCOAMS: No existing record found for list_owner_id ${listOwnerIdToExport}. Proceeding with insert.`);
+    }
+
+    const srtexp = formatDateToMMDDYYYYx(sourcePaf.expiration);
+    console.log("expiers",srtexp,sourcePaf.expiration);
+
+    const dataToUpsert = {
+      licensee_id: sourcePaf.licensee_id, // Assumes admin's usps_license_id is the 4-char licensee_id
+      list_owner_sic: sourcePaf.list_owner_sic,
+      freq_proc: sourcePaf.freq_proc,
+      list_owner_id: sourcePaf.list_owner_id, // The 6-char ID
+      company: sourcePaf.company,
+      address: sourcePaf.address,
+      city: sourcePaf.city,
+      state: sourcePaf.state,
+      zip: sourcePaf.zip, // This should contain the full zip
+      zip4: sourcePaf.zip4,
+      telephone: sourcePaf.telephone,
+      sign_name: sourcePaf.signer_name,
+      sign_title: sourcePaf.signer_title,
+      sign_customer_date: formatDateToMMDDYYYYx(sourcePaf.date_signed),
+      paf_type: sourcePaf.paf_type,
+      list_name: sourcePaf.list_name,
+      parent_company: sourcePaf.parent_company,
+      alt_company: sourcePaf.alternate_company_name,
+      notes: sourcePaf.notes,
+      fax: sourcePaf.fax_number,
+      expires: srtexp,
+      urbanization: sourcePaf.urbanization,
+      list_owner_crid: sourcePaf.list_owner_crid,
+      postal_id: sourcePaf.mailer_id,
+      email: sourcePaf.signer_email,
+      // Agent info mapping
+      broker_id: sourcePaf.agent_id ? String(sourcePaf.agent_id).padStart(6, '0') : null, // Example: format agent's user ID to 6 chars
+      broker_sic: sourcePaf.agent_sic,
+      sign_broker_date: formatDateToMMDDYYYYx(sourcePaf.agent_signed_date)
+      // Fields with no direct mapping are left out to be NULL/default in the target table
+      // e.g., tin, listadmin_*, rowguid, etc.
+    };
+
+    console.log(dataToUpsert);
+
+    // 5. Insert the NEW record into paf_cust_info
+    // ... (your existing logic to prepare dataToUpsert and queryParams) ...
+    const upsertQuery = `
+      INSERT INTO ncoams.paf_cust_info (
+        licensee_id, list_owner_sic, freq_proc, list_owner_id, company, address, city, state, zip, zip4,
+        telephone, sign_name, sign_title, sign_customer_date, paf_type, list_name, parent_company,
+         notes, fax, expires, urbanization, list_owner_crid, postal_id, email,
+        broker_id, broker_sic, sign_broker_date
+      ) VALUES (
+        ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?
+      )
+    `;
+
+    const queryParams = [
+      dataToUpsert.licensee_id, dataToUpsert.list_owner_sic, dataToUpsert.freq_proc, dataToUpsert.list_owner_id,
+      dataToUpsert.company, dataToUpsert.address, dataToUpsert.city, dataToUpsert.state, dataToUpsert.zip, dataToUpsert.zip4,
+      dataToUpsert.telephone, dataToUpsert.sign_name, dataToUpsert.sign_title, dataToUpsert.sign_customer_date,
+      dataToUpsert.paf_type, dataToUpsert.list_name, dataToUpsert.parent_company,
+      dataToUpsert.notes, dataToUpsert.fax, dataToUpsert.expires, dataToUpsert.urbanization, dataToUpsert.list_owner_crid,
+      dataToUpsert.postal_id, dataToUpsert.email,
+      dataToUpsert.broker_id, dataToUpsert.broker_sic, dataToUpsert.sign_broker_date
+    ];
+
+    console.log(queryParams);
+
+
+    const [upsertResult] = await connection.execute(upsertQuery, queryParams);
+
+    console.log(`Export to NCOAMS: Successfully inserted new record for list_owner_id ${listOwnerIdToExport}.`);
+
+    // --- END OF ARCHIVE-THEN-REPLACE LOGIC ---
+
+    await connection.commit(); // <<< COMMIT TRANSACTION if all steps succeeded
+    
+    res.status(200).json({ message: `PAF data successfully exported to the NCOAMS database (previous record archived if existed).` });
+
+  } catch (error) {
+    if (connection) {
+      await connection.rollback(); // <<< ROLLBACK TRANSACTION on any error
+      console.log("Export to NCOAMS: Transaction rolled back due to error.");
+    }
+    console.error(`Error exporting PAF ID ${pafIdToExport} to NCOAMS:`, error);
+    res.status(500).json({ message: 'Failed to export PAF data.' });
+  } finally {
+    if (connection) connection.release();
+  }
+});
+
+
+
+
+app.post('/api/users/:userId/export-to-ncoams', authenticateAdmin, async (req, res) => {
+  const userIdToExport = parseInt(req.params.userId, 10);
+  const loggedInAdmin = req.session.user;
+  console.log(`Backend /export-to-ncoams: Request for User ID ${userIdToExport} by Admin ID ${loggedInAdmin.id}`);
+
+  function formatDateToYYYYMMDD(isoString) {
+    const date = new Date(isoString);
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, '0');
+    const day = String(date.getDate()).padStart(2, '0');
+    
+    return year + month + day;
+}
+
+
+  if (isNaN(userIdToExport)) {
+    return res.status(400).json({ message: 'Invalid User ID.' });
+  }
+
+  let connection;
+  try {
+    connection = await dbPool.getConnection();
+
+    // 1. Fetch the full user record from your current database (paf_management_db)
+    const [userRows] = await connection.execute('SELECT * FROM users WHERE id = ?', [userIdToExport]);
+
+    if (userRows.length === 0) {
+      return res.status(404).json({ message: 'Source user not found.' });
+    }
+    const sourceUser = userRows[0];
+
+    console.log(sourceUser)
+    
+    // Authorization check (optional but good): ensure the admin has scope over this user
+    if (sourceUser.created_by_admin_id !== loggedInAdmin.id && sourceUser.id !== loggedInAdmin.id) {
+        // Allow if admin is editing a user they created OR themselves
+        // You might have other rules for super-admins
+        return res.status(403).json({ message: 'Forbidden: You are not authorized to export this user.' });
+    }
+
+    // 2. Prepare data object with mappings to the target table's columns
+    const dataToUpsert = {
+      licensee_id: sourceUser.usps_license_id, // This is the 4-char Platform ID of the admin/licensee
+      broker_sic: sourceUser.SIC,
+      broker_id: sourceUser.UserID, // Using the 16-char generated ID. Target is char(6), this needs clarification.
+                                     // Let's assume for now we take the last 6 chars of the usps_id.
+      company_name: sourceUser.licensee_name, // As requested
+      address: sourceUser.street_address,
+      city: sourceUser.city,
+      state: sourceUser.state,
+      zip: sourceUser.zip,
+      zip4: null, // You don't have a separate zip4 on the users table
+      telephone: sourceUser.phone_number
+    };
+
+    console.log("data to upsert",dataToUpsert)
+
+
+    // Clarification on broker_id:
+    // The target `broker_id` is char(6). Your source `usps_id` is char(16).
+    // Let's take the last 6 characters of the `usps_id` as the `broker_id`.
+    let brokerIdForTarget = null;
+    if (sourceUser.usps_id && sourceUser.usps_id.length >= 6) {
+        brokerIdForTarget = sourceUser.usps_id.slice(-6);
+    }
+
+    let brokersigndate = null;
+    let ladminsigndate = null;
+
+
+    // find broker/list admin 
+    let BLA = 'L'
+    ladminsigndate = formatDateToYYYYMMDD(sourceUser.updated_at)
+    if(sourceUser.broker_list_admin === 'broker')
+    {
+      BLA='B'
+      ladminsigndate = null;
+      brokersigndate = formatDateToYYYYMMDD(sourceUser.updated_at)
+
+   
+    }
+
+    // 3. Construct and execute the INSERT ... ON DUPLICATE KEY UPDATE query
+    const upsertQuery = `
+      INSERT INTO ncoams.paf_broker_info (
+        licensee_id, broker_sic, broker_id, company_name, address, city, state, zip, zip4, telephone,broker_list_admin,sign_broker_date,sign_listadmin_date
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`;
+
+    const queryParams = [
+      dataToUpsert.licensee_id,
+      dataToUpsert.broker_sic,
+      dataToUpsert.broker_id, // Using the derived 6-char ID
+      dataToUpsert.company_name,
+      dataToUpsert.address,
+      dataToUpsert.city,
+      dataToUpsert.state,
+      dataToUpsert.zip,
+      dataToUpsert.zip4,
+      dataToUpsert.telephone,
+      BLA,
+      brokersigndate,
+      ladminsigndate
+    ];
+
+    console.log("query params",queryParams)
+
+
+    const [upsertResult] = await connection.execute(upsertQuery, queryParams);
+    
+    let actionTaken = 'inserted';
+    if (upsertResult.affectedRows === 2) { // An update counts as 2 affected rows
+        actionTaken = 'updated';
+    }
+    console.log(`Backend /export-to-ncoams: Record for broker_id ${brokerIdForTarget} was ${actionTaken}.`);
+
+    res.status(200).json({ message: `User data successfully ${actionTaken} in the NCOAMS broker info table.` });
+ 
+  } catch (error) {
+    console.error(`Error exporting User ID ${userIdToExport} to NCOAMS:`, error);
+    res.status(500).json({ message: 'Failed to export user data.' });
+  } finally {
+    if (connection) connection.release();
+  }
+});
+
+
+// --- NEW ENDPOINT: POST /api/users/:userId/upload-signature ---
+// This endpoint will receive the file, save it, and update the user record.
+app.post('/api/users/:userId/upload-signature', ensureAuthenticated, upload.single('signatureImage'), async (req, res) => {
+  // `upload.single('signatureImage')` is the multer middleware.
+  // It processes a single file uploaded in a field named 'signatureImage'.
+  // If successful, the file info is available in `req.file`.
+
+  const userIdToUpdate = parseInt(req.params.userId, 10);
+  const loggedInUser = req.session.user;
+  const uploadedFile = req.file;
+
+  console.log(`Backend /upload-signature: Request for User ID ${userIdToUpdate} by User ID ${loggedInUser.id}`);
+
+  if (!uploadedFile) {
+    return res.status(400).json({ message: 'No signature file was uploaded.' });
+  }
+
+  // Authorization check (user can update their own, admin can update users they manage)
+  // ... (Your existing authorization logic from the PUT /api/users/:userId endpoint) ...
+  if (loggedInUser.id !== userIdToUpdate && loggedInUser.role !== 'ADMIN') {
+      return res.status(403).json({ message: 'Forbidden: You are not authorized to update this user.' });
+  }
+  // Add more granular admin auth if needed...
+
+
+  let connection;
+  try {
+    connection = await dbPool.getConnection();
+
+    // Update the user's record with the new filename
+    const newFilename = uploadedFile.filename;
+    const updateQuery = 'UPDATE users SET signature_file = ?, updated_at = NOW() WHERE id = ?;';
+    await connection.execute(updateQuery, [newFilename, userIdToUpdate]);
+
+    console.log(`Backend /upload-signature: User ${userIdToUpdate} record updated with signature file: ${newFilename}`);
+    
+    // Return the filename and a publicly accessible path
+    res.status(200).json({
+      message: 'Signature uploaded successfully.',
+      fileName: newFilename,
+      filePath: `/signatures/${newFilename}` // The path the frontend can use to display the image
+    });
+
+  } catch (error) {
+    console.error(`Error uploading signature for user ${userIdToUpdate}:`, error);
+    res.status(500).json({ message: 'Server error while saving signature.' });
+  } finally {
+    if (connection) connection.release();
+  }
+});
+
 
 
 // --- Start the server ---
@@ -3905,10 +4328,10 @@ try {
     console.log(`⚠️ PAF System Backend is running on insecure HTTP on port ${HTTP_PORT}.`);
   });
 }
+ 
 
-
-const httpServer = http.createServer(app);
-httpServer.listen(HTTP_PORT, () => {
-  console.log(`⚠️ PAF System Backend (Node) is running on insecure HTTP on port ${HTTP_PORT}.`);
-});
+//const httpServer = http.createServer(app);
+//httpServer.listen(HTTP_PORT, () => {
+//  console.log(`⚠️ PAF System Backend (Node) is running on insecure HTTP on port ${HTTP_PORT}.`);
+//});
 
