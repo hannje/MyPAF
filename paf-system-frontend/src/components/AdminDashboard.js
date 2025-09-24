@@ -53,8 +53,6 @@ function AdminDashboard({ currentUser }) {
 
     const [exporting, setExporting] = useState(false); 
     const [exportMessage, setExportMessage] = useState('');
-    const [migrating, setMigrating] = useState(false);
-    const [migrateMessage, setMigrateMessage] = useState('');
 
      const [isLoadingUsers, setIsLoadingUsers] = useState(false);
      const [errorUsers, setErrorUsers] = useState('');
@@ -80,6 +78,7 @@ function AdminDashboard({ currentUser }) {
    const [showRegisterAdminForm, setShowRegisterAdminForm] = useState(false);
 
     const [pafFilter, setPafFilter] = useState('ALL'); // 'ALL', 'ACTIVE', or 'OTHER'
+    const [pafSort, setPafSort] = useState('NONE'); // 'NONE', 'EXPIRATION', 'FIRM', 'CUSTOMID'
 
 
 
@@ -273,8 +272,8 @@ const handleLicenseeValidate = async (pafDbId, pafCurrentStatus) => {
         // Or, the button should only show if status is PENDING_LICENSEE_VALIDATION_US_ONLY for now.
         if (pafCurrentStatus === 'PENDING_LICENSEE_VALIDATION_US_ONLY') { // Simple check for now
              expectedPrevStatus = 'PENDING_LICENSEE_VALIDATION_US_ONLY';
-        } else if (pafCurrentStatus === 'PENDING_USPS_APPROVAL_FOREIGN_ONLY'){ // Example for foreign
-             expectedPrevStatus = 'PENDING_USPS_APPROVAL_FOREIGN_ONLY';
+        } else if (pafCurrentStatus === 'PENDING_USPS_APPROVAL_FOREIGN'){ // Example for foreign
+             expectedPrevStatus = 'PENDING_USPS_APPROVAL_FOREIGN';
         } else {
             alert(`PAF is not in a state ready for Licensee Validation. Current status: ${pafCurrentStatus}`);
             return;
@@ -364,20 +363,47 @@ const handleLicenseeValidate = async (pafDbId, pafCurrentStatus) => {
 
 //    console.log("ADMIN DASH: currentUser:", currentUser);
 
-  const filteredPafs = useMemo(() => {
-        console.log(`Filtering PAFs with filter: ${pafFilter}`);
+  const filteredAndSortedPafs = useMemo(() => {
+
+        // First, apply filtering
+        let filtered = allPafs;
         if (pafFilter === 'ACTIVE') {
             // Define what "active" means. Includes validated, or any other final "good" status.
             const activeStatuses = ['LICENSEE_VALIDATED', 'ACTIVE', 'PROCESSING_COMPLETE']; // <<< ADJUST THESE STATUSES
-            return allPafs.filter(paf => activeStatuses.includes(paf.status));
-        }
-        if (pafFilter === 'OTHER') {
+            filtered = allPafs.filter(paf => activeStatuses.includes(paf.status));
+        } else if (pafFilter === 'OTHER') {
             const activeStatuses = ['LICENSEE_VALIDATED', 'ACTIVE', 'PROCESSING_COMPLETE']; // Must match above
-            return allPafs.filter(paf => !activeStatuses.includes(paf.status));
+            filtered = allPafs.filter(paf => !activeStatuses.includes(paf.status));
         }
-        // Default case: 'ALL'
-        return allPafs;
-    }, [allPafs, pafFilter]); // This memoized value only recalculates when allPafs or pafFilter changes
+        // Default case: 'ALL' - no filtering needed
+
+        // Then, apply sorting
+        if (pafSort === 'EXPIRATION') {
+            const sorted = [...filtered].sort((a, b) => {
+                const dateA = a.expiration ? new Date(a.expiration) : new Date(0);
+                const dateB = b.expiration ? new Date(b.expiration) : new Date(0);
+                return dateA - dateB; // Ascending order (earliest first)
+            });
+            return sorted;
+        } else if (pafSort === 'FIRM') {
+            const sorted = [...filtered].sort((a, b) => {
+                const firmA = (a.company || '').toLowerCase();
+                const firmB = (b.company || '').toLowerCase();
+                return firmA.localeCompare(firmB); // Alphabetical order
+            });
+            return sorted;
+        } else if (pafSort === 'CUSTOMID') {
+            const sorted = [...filtered].sort((a, b) => {
+                const customIdA = a.CustomID || '';
+                const customIdB = b.CustomID || '';
+                return customIdA.localeCompare(customIdB); // Alphabetical order
+            });
+            return sorted;
+        }
+
+        // Default case: 'NONE' - return filtered results without sorting
+        return filtered;
+    }, [allPafs, pafFilter, pafSort]); // This memoized value recalculates when allPafs, pafFilter, or pafSort changes
     // AAAAAA END OF NEW LOGIC AAAAAA
 
 
@@ -446,41 +472,33 @@ const handleLicenseeValidate = async (pafDbId, pafCurrentStatus) => {
     }, 50); // A small delay of 50ms is usually enough for the UI to update.
   };
 
-  // --- NEW HANDLER FUNCTION FOR MIGRATE PAFs ---
-  const handleMigratePafs = async () => {
-    if (!window.confirm('Are you sure you want to migrate PAFs? This operation may take some time.')) {
+  const handleUspsApprove = async (pafId, notes = '') => {
+    // The confirmation dialog is handled here
+    if (!window.confirm("Please confirm that you have received official USPS approval for this Foreign PAF.")) {
       return;
     }
-
-    console.log("handleMigratePafs called");
     
-    setMigrating(true);
-    setMigrateMessage('Starting PAF migration, please wait...');
-
     try {
-      console.log('Migrating: Calling POST /api/pafs/migrate');
-      const response = await axios.post(`${API_BASE_URL}/pafs/migrate`, {}, {
-        withCredentials: true,
-      });
-
-      console.log('Migration response:', response.data);
-      setMigrateMessage(response.data.message || 'PAF migration completed successfully.');
+      const url = `${API_BASE_URL}/pafs/${pafId}/usps-approve`;
+      const response = await axios.put(url, { notes }, { withCredentials: true });
       
-      // Optionally refresh the PAF list after migration
-      setTimeout(() => {
-        window.location.reload();
-      }, 2000);
+      alert(response.data.message || "USPS Approval Confirmed!");
+      
+      // Update local state to reflect the change
+      setAllPafs(prevPafs => 
+        prevPafs.map(paf => 
+          paf.id === pafId ? response.data.paf : paf
+        )
+      );
 
     } catch (error) {
-      console.error('Error migrating PAFs:', error);
-      const errorMessage = error.response?.data?.message || 'Failed to migrate PAFs. Please try again.';
-      setMigrateMessage(''); // Clear loading message on error
-      alert(`Migration Error: ${errorMessage}`);
-    } finally {
-      setMigrating(false);
+      console.error("Error confirming USPS approval:", error.response?.data || error.message);
+      alert(`Error: ${error.response?.data?.message || 'Please try again.'}`);
     }
   };
- 
+
+
+
     console.log("AdminDashboard Render: currentUser:", currentUser);
     return (
 
@@ -534,24 +552,11 @@ const handleLicenseeValidate = async (pafDbId, pafCurrentStatus) => {
                     </button>
 
                     {/* --- Migrate PAFs Button --- */}
-                    <button 
-                        onClick={handleMigratePafs}
-                        disabled={migrating}
-                        className="action-button btn-migrate"
-                    >
-                        {migrating ? 'Migrating...' : 'Migrate PAFs'}
-                    </button>
                 </div>
                 {/* --- Export Feedback Message --- */}
                 {exportMessage && (
                     <div className="export-feedback">
                         {exportMessage}
-                    </div>
-                )}
-                {/* --- Migrate Feedback Message --- */}
-                {migrateMessage && (
-                    <div className="migrate-feedback">
-                        {migrateMessage}
                     </div>
                 )}
             </div>
@@ -587,37 +592,82 @@ const handleLicenseeValidate = async (pafDbId, pafCurrentStatus) => {
             <div className="action-section">
                 <h2>All Processing Acknowledgement Forms (PAFs)</h2>
                 <div className="filter-controls" style={{ margin: '15px 0', padding: '10px', backgroundColor: '#f8f9fa', border: '1px solid #dee2e6', borderRadius: '5px' }}>
-                    <strong>Filter PAFs:</strong>
-                    <label style={{ marginLeft: '15px', cursor: 'pointer' }}>
-                        <input
-                            type="radio"
-                            name="pafFilter"
-                            value="ALL"
-                            checked={pafFilter === 'ALL'}
-                            onChange={(e) => setPafFilter(e.target.value)}
-                        />
-                        Display All ({allPafs.length})
-                    </label>
-                    <label style={{ marginLeft: '15px', cursor: 'pointer' }}>
-                        <input
-                            type="radio"
-                            name="pafFilter"
-                            value="ACTIVE"
-                            checked={pafFilter === 'ACTIVE'}
-                            onChange={(e) => setPafFilter(e.target.value)}
-                        />
-                        Display Active
-                    </label>
-                    <label style={{ marginLeft: '15px', cursor: 'pointer' }}>
-                        <input
-                            type="radio"
-                            name="pafFilter"
-                            value="OTHER"
-                            checked={pafFilter === 'OTHER'}
-                            onChange={(e) => setPafFilter(e.target.value)}
-                        />
-                        Display All Other
-                    </label>
+                    <div style={{ marginBottom: '10px' }}>
+                        <strong>Filter PAFs:</strong>
+                        <label style={{ marginLeft: '15px', cursor: 'pointer' }}>
+                            <input
+                                type="radio"
+                                name="pafFilter"
+                                value="ALL"
+                                checked={pafFilter === 'ALL'}
+                                onChange={(e) => setPafFilter(e.target.value)}
+                            />
+                            Display All ({allPafs.length})
+                        </label>
+                        <label style={{ marginLeft: '15px', cursor: 'pointer' }}>
+                            <input
+                                type="radio"
+                                name="pafFilter"
+                                value="ACTIVE"
+                                checked={pafFilter === 'ACTIVE'}
+                                onChange={(e) => setPafFilter(e.target.value)}
+                            />
+                            Display Active
+                        </label>
+                        <label style={{ marginLeft: '15px', cursor: 'pointer' }}>
+                            <input
+                                type="radio"
+                                name="pafFilter"
+                                value="OTHER"
+                                checked={pafFilter === 'OTHER'}
+                                onChange={(e) => setPafFilter(e.target.value)}
+                            />
+                            Display All Other
+                        </label>
+                    </div>
+                    <div>
+                        <strong>Sort PAFs:</strong>
+                        <label style={{ marginLeft: '15px', cursor: 'pointer' }}>
+                            <input
+                                type="radio"
+                                name="pafSort"
+                                value="NONE"
+                                checked={pafSort === 'NONE'}
+                                onChange={(e) => setPafSort(e.target.value)}
+                            />
+                            No Sorting
+                        </label>
+                        <label style={{ marginLeft: '15px', cursor: 'pointer' }}>
+                            <input
+                                type="radio"
+                                name="pafSort"
+                                value="EXPIRATION"
+                                checked={pafSort === 'EXPIRATION'}
+                                onChange={(e) => setPafSort(e.target.value)}
+                            />
+                            Sort by Expiration
+                        </label>
+                        <label style={{ marginLeft: '15px', cursor: 'pointer' }}>
+                            <input
+                                type="radio"
+                                name="pafSort"
+                                value="FIRM"
+                                checked={pafSort === 'FIRM'}
+                                onChange={(e) => setPafSort(e.target.value)}
+                            />
+                            Sort by Firm
+                        </label>
+                        <label style={{ marginLeft: '15px', cursor: 'pointer' }}>
+                            <input
+                                type="radio"
+                                name="pafSort"
+                                value="CUSTOMID"
+                                checked={pafSort === 'CUSTOMID'}
+                                onChange={(e) => setPafSort(e.target.value)}
+                            />
+                            Sort by CustomID
+                        </label>
+                    </div>
                 </div>
 
                 {allPafsError && <div className="message error">{allPafsError}</div>}
@@ -639,17 +689,19 @@ const handleLicenseeValidate = async (pafDbId, pafCurrentStatus) => {
                                     <th>Type (I/R/M)</th>
                                     <th>Last Updated / Issued</th>
                                     <th>Expiration</th>
+                                    <th>CustomID</th>
                                     <th>Actions</th>
                                 </tr>
                             </thead>
                             <tbody>
-            {filteredPafs.length > 0 ? (
+            {filteredAndSortedPafs.length > 0 ? (
               // The map is now very clean and only responsible for passing props
-              filteredPafs.map(paf => (
-                <PafTableRow 
-                  key={paf.id} 
-                  paf={paf} 
-                  onSelfApprove={handleSelfApprovePaf} 
+              filteredAndSortedPafs.map(paf => (
+                <PafTableRow
+                  key={paf.id}
+                  paf={paf}
+                  onSelfApprove={handleSelfApprovePaf}
+                  onUspsApprove={handleUspsApprove}
                   formatDate={formatDate}
                 />
               ))
@@ -697,7 +749,9 @@ const handleLicenseeValidate = async (pafDbId, pafCurrentStatus) => {
                                 <th>Name</th>
                                 <th>Email</th>
                                 <th>Firm</th>
+                                <th>SIC</th>
                                 <th>Role</th>
+                                <th>Agent Type</th>
                                 <th>Created On</th>
                                 <th>Actions</th>
                             </tr>
@@ -708,12 +762,14 @@ const handleLicenseeValidate = async (pafDbId, pafCurrentStatus) => {
                               //  console.log("AdminDashboard Render: Mapping user:", user);
                                     
                                 <tr key={user.id}>
-                                    <td>{user.id}</td>
+                                    <td>{user.userId}</td>
                                    
                                     <td>{`${user.firstName || ''} ${user.lastName || ''}`.trim()}</td>
                                     <td>{user.email}</td>
                                     <td>{user.firm}</td>
+                                    <td>{user.sic}</td>
                                     <td>{user.role ? user.role.replace(/_/g, ' ') : 'N/A'}</td>
+                                    <td>{user.bla}</td>
                                     <td>{formatDate(user.createdAt)}</td>
                                     <td className="actions">
                                         <Link to={`/admin/users/edit/${user.id}`}>Edit</Link>
@@ -727,7 +783,7 @@ const handleLicenseeValidate = async (pafDbId, pafCurrentStatus) => {
                 )}
            </div>
         </div>
-    );
+    ); 
 
 
 }
