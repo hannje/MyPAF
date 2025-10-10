@@ -18,8 +18,9 @@ import RegisterUserForm from './components/RegisterUserForm'; // Or your CreateP
 import RegisterAdminForm from './components/RegisterAdminForm'; // For admins to create other admins
 
 
-import AdminPafValidationPage from './components/AdminPafValidationPage'; 
+import AdminPafValidationPage from './components/AdminPafValidationPage';
 import AgentApprovalPage from './components/AgentApprovalPage';
+import LegacyPafsPage from './components/LegacyPafsPage';
 
 // --- Styles ---
 import './App.css';
@@ -265,6 +266,7 @@ function InnerApp() {
           {/* AAAAAA END OF NEW ROUTE AAAAAA */}
 
          <Route path="/pafs/agent-approve/:pafId" element={<AgentApprovalPage />} />
+         <Route path="/api/pafs/:pafId/migrate-sql" element={<ViewPafDetails currentUser={adminUser} />} />
 
 
 
@@ -281,8 +283,8 @@ function InnerApp() {
  
            <Route path="/admin/users/edit/:userId" element={<EditUserForm />} />
           <Route path="/admin/pafs/validate/:pafId" element={<AdminPafValidationPage />} />
- 
- 
+          <Route path="/admin/legacy-pafs" element={<LegacyPafsPage />} />
+
           </Route>
 
 
@@ -298,7 +300,9 @@ function InnerApp() {
 
 // --- Main App Component (Provides AuthContext and Router) ---
 function App() {
-  // All authentication state and logic is now managed by AuthProvider
+
+  console.log('App: Initializing env:', process.env);
+    // All authentication state and logic is now managed by AuthProvider
   return (
     <AuthProvider>
       <Router>

@@ -6,7 +6,7 @@ import {  useNavigate } from 'react-router-dom'; // useNavigate for programmatic
 
 
 
-function PafTableRow({ paf, onSelfApprove,formatDate }) { // Receive the paf object and the handler function as props
+function PafTableRow({ paf, onSelfApprove,onUspsApprove,formatDate }) { // Receive the paf object and the handler function as props
   const { adminUser } = useContext(AuthContext); // Get the logged-in admin user
 
   // The logic for this specific row is now contained within this component
@@ -60,11 +60,15 @@ console.log(`PafTableRow: paf`, paf); // Debug log
    const getStatusClass = (status) => {
     if (!status) return 'status-other';
     const lowerStatus = status.toLowerCase();
+    if (lowerStatus.includes('foreign')) return 'status-foreign';
+   
     if (lowerStatus.includes('agent')) return 'status-agent-approval'; 
     if (lowerStatus.includes('expired')) return 'status-expired'; // <<< NEW CLASS
     if (lowerStatus.includes('pending')) return 'status-pending';
     if (lowerStatus.includes('rejected')) return 'status-rejected';
     if (lowerStatus.includes('active') || lowerStatus.includes('validated')) return 'status-active';
+
+
     return 'status-other';
   };
   const statusClassName = getStatusClass(displayStatus);
@@ -83,7 +87,7 @@ console.log(`PafTableRow: paf`, paf); // Debug log
       <td>{paf.agentId}</td>
     
       <td>{paf.jurisdiction}</td>
-      <td>{paf.companyName}</td>
+      <td>{paf.company}</td>
       <td>{paf.listOwnerSic}</td>
 
    <td>
@@ -99,6 +103,8 @@ console.log(`PafTableRow: paf`, paf); // Debug log
 
       <td className={expirationClass}>{paf.expiration ? new Date(paf.expiration).toLocaleDateString() : 'N/A'}</td>
 
+      <td>{paf.CustomID}</td>
+
       <td className="actions">
         <Link to={`/pafs/view/${paf.id}`}>View Details</Link>
         
@@ -106,7 +112,7 @@ console.log(`PafTableRow: paf`, paf); // Debug log
         {(paf.status === 'PENDING_LIST_OWNER_APPROVAL' ||paf.status === 'PENDING_LIST_OWNER_SIGNATURE') && isAdminTheCreator && (
           <button 
 
-          onClick={() => navigate(`/pafs/approve/${paf.id}`)}
+          onClick={() => navigate(`/pafs/approve/${paf.id}`)} 
                      
            >
             Approve PAF
@@ -129,6 +135,17 @@ console.log(`PafTableRow: paf`, paf); // Debug log
           >
             Agent Approve
           </Link>
+
+          
+        )}
+
+        {paf.status === 'PENDING_USPS_APPROVAL_FOREIGN' && adminUser?.role === 'ADMIN' && (
+          <button
+            onClick={() => onUspsApprove(paf.id, "Admin confirmed receipt of USPS approval.")}
+            style={{ marginLeft: '10px', backgroundColor: '#17a2b8' /* Info blue */ }}
+          >
+            USPS Approval RCVD
+          </button>
         )}
 
 

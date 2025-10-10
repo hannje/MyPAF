@@ -3,7 +3,7 @@ import axios from 'axios';
 // import apiService from '../services/apiService'; // Or your API utility
  
 function CreateAdminForm() {
-  const [username, setUsername] = useState('');
+  const [username, setUsername] = useState('');  
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [uspsLicenseId, setUspsLicenseId] = useState('');
@@ -13,6 +13,10 @@ function CreateAdminForm() {
   const [message, setMessage] = useState('');
   const [error, setError] = useState('');
   const [isLoading, setIsLoading] = useState(false);
+
+  const [fax, setFax] = useState('');
+  const [website, setWebsite] = useState('');
+
 
   const handleSubmit = async (event) => {
     event.preventDefault();

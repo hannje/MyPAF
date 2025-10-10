@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState,useEffect  } from 'react';
 import axios from 'axios';
 import './RegisterUserForm.css'; // Or your chosen CSS file (e.g., AuthForm.css)
 
@@ -29,6 +29,37 @@ function RegisterAdminForm({ onAdminRegistrationSuccess }) { // Optional success
 
   const [brokerListAdminRole, setBrokerListAdminRole] = useState(''); // Default to empty
 
+
+   const [useEmail, setUseEmail] = useState('');
+
+  const [sic, setSic] = useState(''); // State for the selected NAICS code
+  const [naicsCodes, setNaicsCodes] = useState([]);
+  const [isLoadingNaics, setIsLoadingNaics] = useState(true);
+
+  const [fax, setFax] = useState('');
+  const [website, setWebsite] = useState('');
+  const [signatureFile, setSignatureFile] = useState(null);
+
+
+   useEffect(() => {
+    const fetchNaicsCodes = async () => {
+      setIsLoadingNaics(true);
+      try {
+        const response = await axios.get(`${API_BASE_URL}/api/data/naics-codes`);
+        if (Array.isArray(response.data)) {
+          setNaicsCodes(response.data);
+        }
+      } catch (error) {
+        console.error("RegisterAdminForm: Failed to fetch NAICS codes:", error);
+      } finally {
+        setIsLoadingNaics(false);
+      }
+    };
+    fetchNaicsCodes();
+  }, []); // Empty array ensures this runs only once on 
+
+
+
   const handleSubmit = async (event) => {
     event.preventDefault();
     setMessage('');
@@ -36,8 +67,8 @@ function RegisterAdminForm({ onAdminRegistrationSuccess }) { // Optional success
     setIsLoading(true);
 
     // Basic validation
-    if (!firstName || !lastName || !email || !password || !uspsLicenseId || !licenseeName || !role) {
-      setError('First Name, Last Name, Email, Password, Role, USPS License ID, and Licensee Name are required.');
+    if (!firstName || !lastName || !email || !password || !uspsLicenseId || !licenseeName || !role || !sic ) {
+      setError('First Name, Last Name, Email, SIC, Password, Role, USPS License ID, and Licensee Name are required.');
       setIsLoading(false);
       return;
     }
@@ -58,13 +89,38 @@ function RegisterAdminForm({ onAdminRegistrationSuccess }) { // Optional success
       state: state.trim() || null,
       zipCode: zipCode.trim() || null,
       phoneNumber: phoneNumber.trim() || null,
+       useEmail: useEmail.trim() || null, 
+      sic: sic , // NAICS code is required
+      fax: fax.trim() || null,
+      website: website.trim() || null,
       // created_by_admin_id would be set by the backend based on the logged-in super-admin, if applicable
     };
 
     try {
+      // First, create the admin user
       console.log('RegisterAdminForm: Submitting to /api/admins/register-admin with data:', adminData);
-      // This endpoint now needs to handle creating a user with all these fields
       const response = await axios.post(`${API_BASE_URL}/api/admins/register-admin`, adminData);
+
+      // If signature file is provided, upload it separately
+      if (signatureFile && response.data.userId) {
+        const formData = new FormData();
+        formData.append('signature', signatureFile);
+        formData.append('userId', response.data.userId);
+
+        try {
+          await axios.post(`${API_BASE_URL}/api/users/upload-signature`, formData, {
+            headers: {
+              'Content-Type': 'multipart/form-data'
+            },
+            withCredentials: true
+          });
+          console.log('RegisterAdminForm: Signature uploaded successfully');
+        } catch (signatureError) {
+          console.error('RegisterAdminForm: Error uploading signature:', signatureError);
+          // Don't fail the entire registration for signature upload issues
+          setMessage('Admin created successfully, but signature upload failed. You can upload it later.');
+        }
+      }
 
       const adminDisplayName = `${response.data.admin.firstName || ''} ${response.data.admin.lastName || ''}`.trim() || response.data.admin.email;
       setMessage(`System Admin "${adminDisplayName}" created successfully!`);
@@ -82,6 +138,9 @@ function RegisterAdminForm({ onAdminRegistrationSuccess }) { // Optional success
       setStateVal('');
       setZipCode('');
       setPhoneNumber('');
+      setFax('');
+      setWebsite('');
+
 
       if (onAdminRegistrationSuccess) {
         onAdminRegistrationSuccess(response.data.admin);
@@ -122,12 +181,44 @@ function RegisterAdminForm({ onAdminRegistrationSuccess }) { // Optional success
             <input type="password" id="admin-password" value={password} onChange={(e) => setPassword(e.target.value)} required />
           </div>
           <div className="form-group">
+            <label htmlFor="admin-signature">Signature Image (Optional):</label>
+            <input
+              type="file"
+              id="admin-signature"
+              accept="image/*"
+              onChange={(e) => setSignatureFile(e.target.files[0])}
+            />
+            <small style={{display: 'block', color: '#666', marginTop: '5px'}}>
+              Upload a signature image (PNG, JPG, GIF, etc.). This will be stored for PAF document signing.
+            </small>
+          </div>
+          <div className="form-group">
             <label htmlFor="admin-role">Role:</label>
             <select id="admin-role" value={role} onChange={(e) => setRole(e.target.value)} required>
               <option value="ADMIN">ADMIN</option>
               {/* Add other admin-level roles if you have them, e.g., 'SUPER_ADMIN' */}
             </select>
           </div>
+<div className="form-group">
+            <label htmlFor="admin-sic">NAICS Code (Required):</label>
+            <select
+              id="admin-sic"
+              value={sic}
+              onChange={(e) => setSic(e.target.value)}
+              disabled={isLoadingNaics}
+              required
+            >
+              <option value="">
+                {isLoadingNaics ? 'Loading NAICS codes...' : 'Select a NAICS Code'}
+              </option>
+              {naicsCodes.map(naics => (
+                <option key={naics.code} value={naics.code}>
+                  {naics.label}
+                </option>
+              ))}
+            </select>
+          </div>
+
 
           <div className="form-group">
             <label>Type (Required):</label>
@@ -177,10 +268,19 @@ function RegisterAdminForm({ onAdminRegistrationSuccess }) { // Optional success
             <label htmlFor="admin-city">City:</label>
             <input type="text" id="admin-city" value={city} onChange={(e) => setCity(e.target.value)} />
           </div>
-          <div className="form-group">
-            <label htmlFor="admin-state">State (e.g., CA):</label>
-            <input type="text" id="admin-state" value={state} onChange={(e) => setStateVal(e.target.value)} maxLength="50" placeholder="e.g., California or CA" />
+ 
+           <div className="form-group">
+            <label htmlFor="create-user-state">State:</label>
+            <input 
+              type="text" 
+              id="create-user-state"
+              value={state} 
+              onChange={(e) => setStateVal(e.target.value.toUpperCase())} // Convert to uppercase
+              maxLength="2" // <<< Limit to 2 characters
+              placeholder="e.g., NY"
+            />
           </div>
+ 
           <div className="form-group">
             <label htmlFor="admin-zipCode">Zip Code:</label>
             <input type="text" id="admin-zipCode" value={zipCode} onChange={(e) => setZipCode(e.target.value)} />
@@ -189,11 +289,50 @@ function RegisterAdminForm({ onAdminRegistrationSuccess }) { // Optional success
             <label htmlFor="admin-phoneNumber">Phone Number:</label>
             <input type="tel" id="admin-phoneNumber" value={phoneNumber} onChange={(e) => setPhoneNumber(e.target.value)} />
           </div>
+         <div className="form-group">
+            <label htmlFor="create-user-useEmail">Use Email (Optional):</label>
+            <input 
+              type="email" 
+              id="create-user-useEmail" 
+              value={useEmail} 
+              onChange={(e) => setUseEmail(e.target.value)} 
+            />
+          </div>
+  <div className="form-group">
+            <label htmlFor="create-user-fax">Fax (Optional):</label>
+            <input 
+              type="tel" 
+              id="create-user-fax" 
+              value={fax} 
+              onChange={(e) => setFax(e.target.value)} 
+            />
+          </div>
+<div className="form-group">
+            <label htmlFor="admin-website">Website (Optional):</label>
+            <input 
+              type="url" 
+              id="admin-website"
+              className="large-input" /* <<< Added a new class */
+              value={website} 
+              onChange={(e) => setWebsite(e.target.value)} 
+              placeholder="https://example.com"
+            />
+          </div>
+         
+
         </fieldset>
 
-        <button type="submit" className="submit-button" disabled={isLoading} style={{ marginTop: '20px' }}>
-          {isLoading ? 'Creating Admin...' : 'Create System Admin'}
-        </button>
+        <div className="form-action-center"> {/* New wrapper div for centering */}
+          <button 
+            type="submit" 
+            className="submit-button large-button" /* Added large-button class */
+            disabled={isLoading}
+          >
+            {isLoading ? 'Creating Admin...' : 'Create System Admin'}
+          </button>
+        </div>     
+     
+     
       </form>
       {message && <p className="success-message" style={{ color: 'green', marginTop: '10px' }}>{message}</p>}
       {error && <p className="error-message" style={{ color: 'red', marginTop: '10px' }}>{error}</p>}

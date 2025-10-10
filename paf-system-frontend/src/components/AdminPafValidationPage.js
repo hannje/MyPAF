@@ -95,14 +95,15 @@ function AdminPafValidationPage() {
       {canBeValidated ? (
         <div style={{marginTop: "20px", borderTop: '2px solid #ccc', paddingTop: '15px'}}>
           <h3>Admin Actions</h3>
-          <button 
-            onClick={() => handleValidationAction('APPROVE')} 
-            disabled={isLoading} 
-            style={{marginRight: "10px", backgroundColor: "green", color: "white"}}
-          >
-            Approve / Validate PAF
-          </button>
-          
+          <div style={{ marginBottom: '20px' }}>
+            <button 
+              onClick={() => handleValidationAction('APPROVE')} 
+              disabled={isLoading} 
+              className="submit-button large-button btn-success" /* <<< Added classes */
+            >
+              Approve / Validate PAF
+            </button>
+          </div>         
           <hr style={{margin: '20px 0'}} />
           
           <div>
@@ -115,12 +116,12 @@ function AdminPafValidationPage() {
             />
             <button 
               onClick={() => handleValidationAction('REJECT', rejectionNotes)} 
-              disabled={isLoading || !rejectionNotes} // Disable if no notes
-              style={{backgroundColor: "darkred", color: "white"}}
+              disabled={isLoading || !rejectionNotes}
+              className="submit-button large-button btn-danger" /* <<< Added classes */
             >
               Reject PAF
             </button>
-          </div>
+         </div>
           {error && <p style={{color: 'red'}}>Action Error: {error}</p>}
         </div>
       ) : (

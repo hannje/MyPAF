@@ -18,6 +18,11 @@ function RegisterUserForm({ onUserCreationSuccess }) {
   const [naicsCodes, setNaicsCodes] = useState([]);
   const [isLoadingNaics, setIsLoadingNaics] = useState(true);
 
+  const [fax, setFax] = useState('');
+  const [website, setWebsite] = useState('');
+  const [signatureFile, setSignatureFile] = useState(null);
+
+
 useEffect(() => {
     const fetchNaicsCodes = async () => {
       setIsLoadingNaics(true);
@@ -86,7 +91,10 @@ useEffect(() => {
       state: state.trim() || null,
       zipCode: zipCode.trim() || null,
       phoneNumber: phoneNumber.trim() || null,
-      adminID:1
+      adminID:1,
+       fax: fax.trim() || null,
+      website: website.trim() || null,
+
       // created_by_admin_id will be set by the backend based on the logged-in admin's session
     };
 
@@ -103,13 +111,38 @@ useEffect(() => {
       const response = await axios.post(url,newUserData,{
         withCredentials: true});
 
+      // If signature file is provided, upload it separately
+      if (signatureFile && response.data.user && response.data.user.id) {
+        const formData = new FormData();
+        formData.append('signature', signatureFile);
+        formData.append('userId', response.data.user.id);
+
+        try {
+          await axios.post(`${API_BASE_URL}/api/users/upload-signature`, formData, {
+            headers: {
+              'Content-Type': 'multipart/form-data'
+            },
+            withCredentials: true
+          });
+          console.log('RegisterUserForm: Signature uploaded successfully');
+        } catch (signatureError) {
+          console.error('RegisterUserForm: Error uploading signature:', signatureError);
+          // Don't fail the entire registration for signature upload issues
+          setMessage('User created successfully, but signature upload failed. You can upload it later.');
+        }
+      }
 
       const userDisplayName = `${response.data.user.firstName || ''} ${response.data.user.lastName || ''}`.trim() || response.data.user.email;
-      setMessage(`User "${userDisplayName}" created successfully!`);
+      if (!signatureFile || signatureFile) { // Always show success message unless overridden above
+        setMessage(`User "${userDisplayName}" created successfully!`);
+      }
 
       // Clear form
       setFirstName(''); setLastName(''); setEmail(''); setPassword(''); setRole('USER');
       setCompanyName(''); setStreetAddress(''); setCity(''); setStateVal(''); setZipCode(''); setPhoneNumber('');
+      setFax('');
+      setWebsite('');
+      setSignatureFile(null);
 
       if (onUserCreationSuccess) {
         onUserCreationSuccess(response.data.user);
@@ -151,8 +184,18 @@ useEffect(() => {
             <label htmlFor="create-user-password">Password:</label>
             <input type="password" id="create-user-password" value={password} onChange={(e) => setPassword(e.target.value)} required />
           </div>
-  
-  
+          <div className="form-group">
+            <label htmlFor="create-user-signature">Signature Image (Optional):</label>
+            <input
+              type="file"
+              id="create-user-signature"
+              accept="image/*"
+              onChange={(e) => setSignatureFile(e.target.files[0])}
+            />
+            <small style={{display: 'block', color: '#666', marginTop: '5px'}}>
+              Upload a signature image (PNG, JPG, GIF, etc.). This will be stored for PAF document signing.
+            </small>
+          </div>
           <div className="form-group">
             <label>Type (Required):</label>
             <div className="radio-group">
@@ -220,10 +263,20 @@ useEffect(() => {
             <label htmlFor="create-user-city">City:</label>
             <input type="text" id="create-user-city" value={city} onChange={(e) => setCity(e.target.value)} />
           </div>
-          <div className="form-group">
+
+           <div className="form-group">
             <label htmlFor="create-user-state">State:</label>
-            <input type="text" id="create-user-state" value={state} onChange={(e) => setStateVal(e.target.value)} />
+            <input 
+              type="text" 
+              id="create-user-state"
+              value={state} 
+              onChange={(e) => setStateVal(e.target.value.toUpperCase())} // Convert to uppercase
+              maxLength="2" // <<< Limit to 2 characters
+              placeholder="e.g., NY"
+            />
           </div>
+
+
           <div className="form-group">
             <label htmlFor="create-user-zipCode">Zip Code:</label>
             <input type="text" id="create-user-zipCode" value={zipCode} onChange={(e) => setZipCode(e.target.value)} />
@@ -232,6 +285,27 @@ useEffect(() => {
             <label htmlFor="create-user-phoneNumber">Phone Number:</label>
             <input type="tel" id="create-user-phoneNumber" value={phoneNumber} onChange={(e) => setPhoneNumber(e.target.value)} />
           </div>
+ <div className="form-group">
+            <label htmlFor="create-user-fax">Fax (Optional):</label>
+            <input 
+              type="tel" 
+              id="create-user-fax" 
+              value={fax} 
+              onChange={(e) => setFax(e.target.value)} 
+            />
+          </div>
+          <div className="form-group">
+            <label htmlFor="create-user-website">Website (Optional):</label>
+            <input 
+              type="url" 
+              id="create-user-website" 
+              value={website} 
+              onChange={(e) => setWebsite(e.target.value)} 
+              placeholder="https://example.com"
+            />
+          </div>
+
+
         </fieldset>
 
         <button type="submit" className="submit-button" disabled={isLoading} style={{ marginTop: '20px' }}>

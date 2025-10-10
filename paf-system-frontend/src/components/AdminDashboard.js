@@ -79,6 +79,8 @@ function AdminDashboard({ currentUser }) {
 
     const [pafFilter, setPafFilter] = useState('ALL'); // 'ALL', 'ACTIVE', or 'OTHER'
     const [pafSort, setPafSort] = useState('NONE'); // 'NONE', 'EXPIRATION', 'FIRM', 'CUSTOMID'
+    const [customIds, setCustomIds] = useState([]); // List of available custom IDs
+    const [selectedCustomId, setSelectedCustomId] = useState(''); // Selected custom ID for filtering
 
 
 
@@ -117,8 +119,16 @@ function AdminDashboard({ currentUser }) {
 
                 console.log("ADMIN DASH: Fetching PAFs from API:", `${API_BASE_URL}/pafs/my-pafs`);
 
+                // Build query params
+                const params = {};
+                if (selectedCustomId) {
+                    params.customId = selectedCustomId;
+                }
+
                 const response = await axios.get(`${API_BASE_URL}/pafs/my-pafs`, {
-                   withCredentials: true });
+                   withCredentials: true,
+                   params: params
+                });
 
                 console.log("ADMIN DASH: Response data for PAFs:", response.data);
                 
@@ -224,7 +234,24 @@ function AdminDashboard({ currentUser }) {
  //       fetchUsers();
         fetchDashboardUsers();
 
-    }, [currentPafsPage]); // Re-fetch PAFs if currentPafsPage changes
+    }, [currentPafsPage, selectedCustomId]); // Re-fetch PAFs if currentPafsPage or selectedCustomId changes
+
+    // Fetch custom IDs for the dropdown
+    useEffect(() => {
+        const fetchCustomIds = async () => {
+            try {
+                const response = await axios.get(`${API_BASE_URL}/pafs/custom-ids`, {
+                    withCredentials: true
+                });
+                if (response.data && Array.isArray(response.data)) {
+                    setCustomIds(response.data);
+                }
+            } catch (err) {
+                console.error('Error fetching custom IDs:', err);
+            }
+        };
+        fetchCustomIds();
+    }, []); // Run once on mount
 
 
     const handleSelfApprovePaf = async (pafIdToApprove) => {
@@ -416,20 +443,36 @@ const handleLicenseeValidate = async (pafDbId, pafCurrentStatus) => {
   ); // <<< THIS IS WHERE LOG 3 GOES
 
   // --- NEW HANDLER FUNCTION FOR EXPORTS ---
- const handleExport = async (exportType) => { // exportType will be 'users' or 'pafs'
-    
+ const handleExport = async (exportType) => { // exportType will be 'users', 'pafs', 'users-bala', or 'pafs-pala'
+
      console.log("handleExport called with exportType:", exportType); // <<< LOG THIS
- 
-    
+
+
     setExporting(true);
-    setExportMessage(`Generating ${exportType} CSV, please wait...`);
+    let fileTypeName;
+    if (exportType === 'users-bala') {
+      fileTypeName = 'BALA file';
+    } else if (exportType === 'pafs-pala') {
+      fileTypeName = 'PALA file';
+    } else {
+      fileTypeName = `${exportType} CSV`;
+    }
+    setExportMessage(`Generating ${fileTypeName}, please wait...`);
 
 
 
-    const endpoint = exportType === 'users' ? '/export/users-csv' : '/export/pafs-csv';
+    let endpoint;
+    if (exportType === 'users') {
+      endpoint = '/export/users-csv';
+    } else if (exportType === 'pafs') {
+      endpoint = '/export/pafs-csv';
+    } else if (exportType === 'users-bala') {
+      endpoint = '/export/users-bala';
+    } else if (exportType === 'pafs-pala') {
+      endpoint = '/export/pafs-pala';
+    }
     const url = `${API_BASE_URL}${endpoint}`;
     setTimeout(async () => {
-      const endpoint = exportType === 'users' ? '/export/users-csv' : '/export/pafs-csv';
       const url = `${API_BASE_URL}${endpoint}`;
 
       try {
@@ -441,7 +484,16 @@ const handleLicenseeValidate = async (pafDbId, pafCurrentStatus) => {
 
         // ... (your existing code to get filename and trigger download) ...
         const contentDisposition = response.headers['content-disposition'];
-        let fileName = `${exportType}_export_${new Date().toISOString().slice(0,10)}.csv`;
+        let fileName;
+
+        // Set default filename based on export type
+        if (exportType === 'users-bala' || exportType === 'pafs-pala') {
+            fileName = `${exportType}_export_${new Date().toISOString().slice(0,10)}.dat`;
+        } else {
+            fileName = `${exportType}_export_${new Date().toISOString().slice(0,10)}.csv`;
+        }
+
+        // Override with server-provided filename if available
         if (contentDisposition) {
             const fileNameMatch = contentDisposition.match(/filename="?(.+)"?/);
             if (fileNameMatch && fileNameMatch.length === 2) fileName = fileNameMatch[1];
@@ -536,20 +588,39 @@ const handleLicenseeValidate = async (pafDbId, pafCurrentStatus) => {
                     </Link>
 
                     {/* --- Export Buttons --- */}
-                    <button 
+                    <button
                         onClick={() => handleExport('users')}
                         disabled={exporting}
                         className="action-button btn-export" /* Added btn-export */
                     >
-                        {exporting ? 'Generating...' : 'Export Users'}
+                        {exporting ? 'Generating...' : 'Export Users (CSV)'}
                     </button>
-                    <button 
+                    <button
+                        onClick={() => handleExport('users-bala')}
+                        disabled={exporting}
+                        className="action-button btn-export" /* Added btn-export */
+                    >
+                        {exporting ? 'Generating...' : 'Export Users (BALA)'}
+                    </button>
+                    <button
                         onClick={() => handleExport('pafs')}
                         disabled={exporting}
                         className="action-button btn-export" /* Added btn-export */
                     >
-                        {exporting ? 'Generating...' : 'Export PAFs'}
+                        {exporting ? 'Generating...' : 'Export PAFs (CSV)'}
                     </button>
+                    <button
+                        onClick={() => handleExport('pafs-pala')}
+                        disabled={exporting}
+                        className="action-button btn-export" /* Added btn-export */
+                    >
+                        {exporting ? 'Generating...' : 'Export PAFs (PALA)'}
+                    </button>
+
+                    {/* --- Display Legacy PAFs Button --- */}
+                    <Link to="/admin/legacy-pafs" className="action-button btn-view">
+                        📋 Display Legacy PAFs
+                    </Link>
 
                     {/* --- Migrate PAFs Button --- */}
                 </div>
@@ -667,6 +738,44 @@ const handleLicenseeValidate = async (pafDbId, pafCurrentStatus) => {
                             />
                             Sort by CustomID
                         </label>
+                    </div>
+                    <div style={{ marginTop: '10px', paddingTop: '10px', borderTop: '1px solid #dee2e6' }}>
+                        <strong>Filter by Custom ID:</strong>
+                        <select
+                            value={selectedCustomId}
+                            onChange={(e) => setSelectedCustomId(e.target.value)}
+                            style={{
+                                marginLeft: '15px',
+                                padding: '5px 10px',
+                                borderRadius: '4px',
+                                border: '1px solid #ced4da',
+                                cursor: 'pointer',
+                                minWidth: '200px'
+                            }}
+                        >
+                            <option value="">All Custom IDs</option>
+                            {customIds.map(customId => (
+                                <option key={customId} value={customId}>
+                                    {customId}
+                                </option>
+                            ))}
+                        </select>
+                        {selectedCustomId && (
+                            <button
+                                onClick={() => setSelectedCustomId('')}
+                                style={{
+                                    marginLeft: '10px',
+                                    padding: '5px 10px',
+                                    borderRadius: '4px',
+                                    border: '1px solid #dc3545',
+                                    backgroundColor: '#dc3545',
+                                    color: 'white',
+                                    cursor: 'pointer'
+                                }}
+                            >
+                                Clear Filter
+                            </button>
+                        )}
                     </div>
                 </div>
 

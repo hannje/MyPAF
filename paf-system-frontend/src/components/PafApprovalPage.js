@@ -332,13 +332,6 @@ const canSubmit = () => {
                         <p>Thank you for approving this PAF! You can now:</p>
                         <div style={{display: 'flex', gap: '10px', justifyContent: 'center', flexWrap: 'wrap'}}>
                             <button 
-                                onClick={() => window.close()} 
-                                className="nav-button" 
-                                style={{backgroundColor: '#28a745', color: 'white', padding: '8px 16px', border: 'none', borderRadius: '4px', cursor: 'pointer'}}
-                            >
-                                Close Window
-                            </button>
-                            <button 
                                 onClick={() => window.location.href = '/'} 
                                 className="nav-button" 
                                 style={{backgroundColor: '#007bff', color: 'white', padding: '8px 16px', border: 'none', borderRadius: '4px', cursor: 'pointer'}}

@@ -101,3 +101,13 @@
   background-color: #aaa;
   cursor: not-allowed;
 }
+
+.typed-signature-input {
+  padding: 12px 15px;      /* Increased padding for more height */
+  font-size: 1.2rem;       /* Larger font size */
+  font-family: 'cursive', 'Segoe Script', 'Brush Script MT', sans-serif; /* A script-like font */
+  border: 1px solid #ccc;
+  border-radius: 4px;
+  width: 100%;             /* Make it take the full width of its container */
+  box-sizing: border-box;  /* Ensures padding doesn't add to the width */
+}

@@ -23,6 +23,8 @@ function CreatePafForm({ onSuccess }) {
 
   const isEditMode = !!initialData.id; // <<< Determine if we are editing
 
+
+  console.log("environment variable", process.env);
   console.log("initdata", initialData);
 
 
@@ -92,6 +94,11 @@ function CreatePafForm({ onSuccess }) {
   const [isLoadingAgents, setIsLoadingAgents] = useState(true);
   // AAAAAA END OF NEW STATE AAAAAA
 
+// VVVVVV NEW STATE FOR CUSTOM ID DROPDOWN VVVVVV
+//const [customId, setCustomId] = useState(''); // State for the selected Custom ID
+const [customIdOptions, setCustomIdOptions] = useState([]);
+const [isLoadingCustomIds, setIsLoadingCustomIds] = useState(true);
+// AAAAAA END OF NEW STATE AAAAAA
 
 
 
@@ -119,6 +126,30 @@ function CreatePafForm({ onSuccess }) {
     }
     
     fetchNaicsCodes();
+
+// VVVVVV NEW FETCH LOGIC FOR CUSTOM IDS VVVVVV
+const fetchCustomIds = async () => {
+  setIsLoadingCustomIds(true);
+  try {
+    // Fetch the text file directly from the public folder
+    const response = await axios.get('/data/CustomIDs.txt');
+    
+    // Parse the text file: split by newline, filter out empty lines, trim whitespace
+    const ids = response.data
+      .split('\n')
+      .filter(id => id.trim() !== '')
+      .map(id => id.trim());
+    
+    console.log(`CreatePafForm: Loaded ${ids.length} Custom IDs.`);
+    setCustomIdOptions(ids);
+  } catch (error) {
+    console.error("CreatePafForm: Failed to fetch CustomIDs.txt:", error);
+  } finally {
+    setIsLoadingCustomIds(false);
+  }
+};
+fetchCustomIds();
+// AAAAAA END OF NEW FETCH LOGIC AAAAAA
 
 
   }, []); // Empty dependency array means this runs once on mount
@@ -215,6 +246,7 @@ useEffect(() => {
       listName, frequency, customId, notes,
       jurisdiction: jurisdiction, // <<< ADD jurisdiction TO PAYLOAD
       agentId: agentId || null, // Send null if empty
+      customId: customId || null, 
     };
 
    try {
@@ -334,16 +366,22 @@ useEffect(() => {
 
           <div className="form-group">
             <label htmlFor="paf-customId">Custom ID (Optional):</label>
-            <input 
-              type="text" 
-              id="paf-customId" 
-              value={customId} 
-              onChange={(e) => setCustomId(e.target.value)} 
-              placeholder="Enter a custom identifier for this PAF"
-            />
-            <small style={{color: '#6c757d', fontStyle: 'italic', display: 'block', marginTop: '5px'}}>
-              Optional field for your own tracking or reference purposes.
-            </small>
+            <select
+              id="paf-customId"
+              value={customId}
+              onChange={(e) => setCustomId(e.target.value)}
+              disabled={isLoadingCustomIds}
+            >
+              <option value="">
+                {isLoadingCustomIds ? 'Loading IDs...' : 'Select a Custom ID (Optional)'}
+              </option>
+              {/* Map over the customIdOptions state to create an <option> for each ID */}
+              {customIdOptions.map(id => (
+                <option key={id} value={id}>
+                  {id}
+                </option>
+              ))}
+            </select>
           </div>
 
           <div className="form-group"><label>Notes:</label><textarea value={notes} onChange={(e) => setNotes(e.target.value)} rows="3"></textarea></div>

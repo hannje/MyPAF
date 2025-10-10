@@ -21,6 +21,13 @@ function EditUserForm() {
   const [error, setError] = useState('');
   const [message, setMessage] = useState('');
 
+  const [signatureFile, setSignatureFile] = useState(null); // State for the selected file
+  const [isUploading, setIsUploading] = useState(false);
+
+
+
+
+
   // Fetch user data on component mount
   useEffect(() => {
     const fetchUser = async () => {
@@ -131,6 +138,56 @@ const handleResetPassword = async () => {
   if (error) return <div style={{padding: '20px', color: 'red'}}>Error: {error} <Link to="/admin-dashboard">Back to Dashboard</Link></div>;
   if (!formData) return <div style={{padding: '20px'}}>No user data to display.</div>;
 
+
+ const handleFileChange = (event) => {
+    setSignatureFile(event.target.files[0]); // Get the first selected file
+  };
+
+  const handleSignatureUpload = async () => {
+    if (!signatureFile) {
+      alert("Please select an image file first.");
+      return;
+    }
+
+    setIsUploading(true);
+    setError(''); // Clear previous errors
+
+    // We use FormData to send files
+    const formDataPayload = new FormData();
+    formDataPayload.append('signatureImage', signatureFile); // 'signatureImage' MUST match the name in upload.single()
+
+    try {
+      const url = `${API_BASE_URL}/api/users/${userIdToEdit}/upload-signature`;
+      console.log(`EditUserForm: Uploading signature to ${url}`);
+
+      const response = await axios.post(url, formDataPayload, {
+        withCredentials: true,
+        headers: {
+          'Content-Type': 'multipart/form-data', // Axios usually sets this automatically with FormData
+        },
+      });
+
+      // Update the main form data state with the new filename from the server
+      setFormData(prevData => ({
+        ...prevData,
+        signatureFile: response.data.fileName
+      }));
+      setSignatureFile(null); // Clear the file input state
+      alert(response.data.message || "Signature uploaded successfully!");
+
+    } catch (err) {
+      console.error("EditUserForm: Error uploading signature:", err.response?.data || err.message);
+      setError(err.response?.data?.message || "Failed to upload signature.");
+    } finally {
+      setIsUploading(false);
+    }
+  }; 
+
+
+
+
+
+
   return (
     <div className="form-container">
       <h2>Edit User: {formData.firstName} {formData.lastName} (ID: {formData.id})</h2>
@@ -181,7 +238,43 @@ const handleResetPassword = async () => {
             </select>
           </div>
           <p><small>Password cannot be changed from this form.</small></p>
-        </fieldset>
+        </fieldset> 
+
+ <fieldset style={{ border: '1px solid #ddd', padding: '15px', marginTop: '20px' }}>
+        <legend>Signature Image</legend>
+        
+        {/* Display the current signature if it exists */}
+        {formData.signatureFile && (
+          <div className="current-signature">
+            <p>Current Signature on File:</p>
+            <img 
+              src={`${API_BASE_URL}/signatures/${formData.signatureFile}`} 
+              alt="User's signature"
+              style={{ maxWidth: '300px', border: '1px solid #ccc', padding: '5px' }}
+            />
+          </div>
+        )}
+
+        <div className="form-group" style={{marginTop: '15px'}}>
+          <label htmlFor="signature-upload">Upload New Signature (Optional):</label>
+          <input 
+            type="file" 
+            id="signature-upload"
+            accept="image/png, image/jpeg, image/gif" // Restrict to image types
+            onChange={handleFileChange}
+          />
+        </div>
+        <button 
+          type="button" // Important: type="button" to not submit the main form
+          onClick={handleSignatureUpload}
+          disabled={!signatureFile || isUploading}
+        >
+          {isUploading ? 'Uploading...' : 'Upload Signature File'}
+        </button>
+      </fieldset>
+
+
+
 
         <fieldset>
           <legend>User's Company & Address Information</legend>

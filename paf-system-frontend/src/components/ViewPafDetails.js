@@ -156,22 +156,16 @@ const handleGeneratePdf = () => {
     setIsExporting(true);
     try {
       console.log(`ViewPafDetails: Exporting PAF with ID: ${pafDbId}`);
-      const response = await axios.get(`${API_BASE_URL}/api/pafs/:pafId/migrate-sql`, {}, {
+      const response = await axios.post(`${API_BASE_URL}/api/pafs/${pafDbId}/export-to-ncoams`, {}, {
         withCredentials: true,                            
         responseType: 'blob'
       });
       
-      // Create a download link for the exported file
-      const url = window.URL.createObjectURL(new Blob([response.data]));
-      const link = document.createElement('a');
-      link.href = url;
-      link.setAttribute('download', `PAF_${pafDetails.fullPafId || pafDbId}_export.pdf`);
-      document.body.appendChild(link);
-      link.click();
-      link.remove();
-      window.URL.revokeObjectURL(url);
       
       console.log("ViewPafDetails: PAF exported successfully");
+      alert(`export PAF to NCOAMS Successful."}`);
+ 
+
     } catch (err) {
       console.error("ViewPafDetails: Error exporting PAF:", err.response?.data || err.message);
       alert(`Error: ${err.response?.data?.message || "Failed to export PAF."}`);
@@ -252,19 +246,19 @@ const handleGeneratePdf = () => {
         {/* Display all the PAF details from pafDetails object */}
         <p><strong>Status:</strong> {pafDetails.status || 'N/A'}</p>
         <p><strong>List Name:</strong> {pafDetails.listName || 'N/A'}</p>
-        <p><strong>Frequency:</strong> {pafDetails.frequency || 'N/A'}</p>
+        <p><strong>Frequency:</strong> {pafDetails.freqProc || 'N/A'}</p>
         {pafDetails.customId && (
           <p><strong>Custom ID:</strong> {pafDetails.customId}</p>
         )}
 
         <h3>List Owner Information</h3>
-        <p><strong>Company:</strong> {pafDetails.companyName || 'N/A'}</p>
-        <p><strong>USPS License ID (Scope):</strong> {pafDetails.pafLicenseeUspsId || 'N/A'}</p>
+        <p><strong>Company:</strong> {pafDetails.company || 'N/A'}</p>
+        <p><strong>USPS License ID (Scope):</strong> {pafDetails.licenseeId || 'N/A'}</p>
         <p><strong>Licensee Company (Scope):</strong> {pafDetails.pafLicenseeCompanyName || 'N/A'}</p>
-        <p><strong>Street:</strong> {pafDetails.streetAddress || 'N/A'}</p>
+        <p><strong>Street:</strong> {pafDetails.address || 'N/A'}</p>
         {/* ... Add all other fields from pafDetails ... */}
         <p><strong>Signer:</strong> {pafDetails.signerName} ({pafDetails.signerTitle})</p>
-        <p><strong>Date Signed:</strong> {pafDetails.dateSigned ? new Date(pafDetails.dateSigned).toLocaleDateString() : 'N/A'}</p>
+        <p><strong>Date Signed:</strong> {pafDetails.licenseeSignDate ? new Date(pafDetails.licenseeSignDate).toLocaleDateString() : 'N/A'}</p>
 
         <h3>Administrative Details</h3>
         <p><strong>PAF Record ID (DB):</strong> {pafDetails.id}</p>

@@ -195,7 +195,7 @@ function UserDashboard({ currentUser }) { // currentUser is passed as a prop fro
                                         <td>{paf.licenseeId || `DB ID: ${paf.id}`}</td>
                                         <td>{paf.listOwnerId}</td>
                                         <td>{paf.agentId}</td>
-                                        <td>{paf.companyName}</td>
+                                        <td>{paf.company}</td>
                                         <td>
                                             <span className={`status ${getStatusClass(paf.status)}`}>
                                                 {paf.status ? paf.status.replace(/_/g, ' ') : 'N/A'}

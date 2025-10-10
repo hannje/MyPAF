@@ -111,3 +111,45 @@
 .user-party-form fieldset.form-section legend input[type="checkbox"] {
     transform: scale(1.1); /* Make checkbox slightly larger */
 }
+
+.form-group .large-input {
+  padding: 12px 15px;      /* Increased padding for more height */
+  font-size: 1.1rem;       /* Larger font size to match the feel */
+}
+
+/* Website field styling */
+.form-group input[type="url"] {
+  padding: 12px 15px;      /* Larger padding for website field */
+  font-size: 1.1rem;       /* Larger font size */
+  min-height: 45px;        /* Minimum height */
+}
+
+/* Submit button styling - bigger and centered */
+.submit-button {
+  background-color: #28a745 !important;  /* Green color for create action */
+  color: white !important;
+  padding: 15px 40px !important;          /* Bigger padding */
+  border: none !important;
+  border-radius: 6px !important;
+  cursor: pointer !important;
+  font-size: 1.2rem !important;           /* Larger font */
+  font-weight: 600 !important;            /* Semi-bold */
+  transition: background-color 0.3s ease !important;
+  display: block !important;              /* Block element */
+  margin: 30px auto 20px auto !important; /* Centered with margin */
+  min-width: 200px !important;            /* Minimum width */
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1) !important; /* Subtle shadow */
+}
+
+.submit-button:hover {
+  background-color: #218838 !important;  /* Darker green on hover */
+  transform: translateY(-1px) !important; /* Slight lift effect */
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.15) !important; /* Enhanced shadow on hover */
+}
+
+.submit-button:disabled {
+  background-color: #6c757d !important;  /* Gray when disabled */
+  cursor: not-allowed !important;
+  transform: none !important;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1) !important;
+}
