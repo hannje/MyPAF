@@ -1411,31 +1411,65 @@ function formatUserId(id) {
 
 app.post('/api/pafs', ensureAuthenticated, async (req, res) => {
   const loggedInUser = req.session.user;
+
+  // Helper function to uppercase string values
+  const toUpperCase = (value) => {
+    if (value && typeof value === 'string') {
+      return value.toUpperCase();
+    }
+    return value;
+  };
+
   const { /* ... all the form fields from req.body ... */
-    listOwnerSic, companyName, parentCompany, alternateCompanyName,
-    streetAddress, city, state, zipCode, zip4, telephone, faxNumber, urbanization,
+    listOwnerSic, company, parentCompany, alternateCompanyName,
+    address, city, state, zip, zip4, telephone, faxNumber, urbanization,
     listOwnerCrid, mailerId,
     signerName, signerTitle, signerEmail, dateSigned,
     listName, frequency, notes, customId,
     agentId, agentSignedDate,jurisdiction
   } = req.body;
 
+  // Convert all string fields to uppercase
+  const listOwnerSicUpper = toUpperCase(listOwnerSic);
+  const companyUpper = toUpperCase(company);
+  const parentCompanyUpper = toUpperCase(parentCompany);
+  const alternateCompanyNameUpper = toUpperCase(alternateCompanyName);
+  const addressUpper = toUpperCase(address);
+  const cityUpper = toUpperCase(city);
+  const stateUpper = toUpperCase(state);
+  const zipUpper = toUpperCase(zip);
+  const zip4Upper = toUpperCase(zip4);
+  const telephoneUpper = toUpperCase(telephone);
+  const faxNumberUpper = toUpperCase(faxNumber);
+  const urbanizationUpper = toUpperCase(urbanization);
+  const listOwnerCridUpper = toUpperCase(listOwnerCrid);
+  const mailerIdUpper = toUpperCase(mailerId);
+  const signerNameUpper = toUpperCase(signerName);
+  const signerTitleUpper = toUpperCase(signerTitle);
+  const signerEmailUpper = toUpperCase(signerEmail);
+  const listNameUpper = toUpperCase(listName);
+  const frequencyUpper = toUpperCase(frequency);
+  const notesUpper = toUpperCase(notes);
+  const customIdUpper = toUpperCase(customId);
+  const jurisdictionUpper = toUpperCase(jurisdiction);
+
   console.log(`Backend /api/pafs: Create PAF request by user ID ${loggedInUser.id}`);
 
+  console.log(req.body)
+
+
   // --- Basic Validation --- (as before)
-  if (!companyName || !listName) {
+  if (!companyUpper || !listNameUpper) {
     return res.status(400).json({ message: 'Company Name and List Name are required.' });
   }
 
-
-
   // --- Determine created_by_user_id and licensee_id --- (as before)
   const createdByUserId = loggedInUser.id;
-  
-  
-  
+
+
+
   let licenseeIdForPaf;
-  
+
   licenseeIdForPaf = req.session.user.uspsLicenseId; // Default to the logged-in user's USPS License ID
 
   console.log("req.session.user",req.session.user);
@@ -1447,7 +1481,7 @@ app.post('/api/pafs', ensureAuthenticated, async (req, res) => {
     let initialStatus = 'PENDING_LIST_OWNER_APPROVAL'; // The default status
     let agentUser = null; // To hold the agent's details if found
 
-    if (jurisdiction === 'FOREIGN') {
+    if (jurisdictionUpper === 'FOREIGN') {
       initialStatus = 'PENDING_USPS_APPROVAL_FOREIGN';
       console.log(`Backend /api/pafs: Jurisdiction is FOREIGN. Setting initial status to ${initialStatus}`);
     } 
@@ -1504,14 +1538,14 @@ app.post('/api/pafs', ensureAuthenticated, async (req, res) => {
       insertValues = `?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW(), NOW()`;
       insertParams = [
         licenseeIdForPaf, createdByUserId,
-        listOwnerSic || null, companyName, parentCompany || null, alternateCompanyName || null,
-        streetAddress || null, city || null, state || null, zipCode || null, zip4 || null,
-        telephone || null, faxNumber || null, urbanization || null,
-        listOwnerCrid || null, mailerId || null,
-        signerName || null, signerTitle || null, signerEmail || null, dateSigned,
-        listName, frequency || null, notes || null, customId || null,
+        listOwnerSicUpper || null, companyUpper, parentCompanyUpper || null, alternateCompanyNameUpper || null,
+        addressUpper || null, cityUpper || null, stateUpper || null, zipUpper || null, zip4Upper || null,
+        telephoneUpper || null, faxNumberUpper || null, urbanizationUpper || null,
+        listOwnerCridUpper || null, mailerIdUpper || null,
+        signerNameUpper || null, signerTitleUpper || null, signerEmailUpper || null, dateSigned,
+        listNameUpper, frequencyUpper || null, notesUpper || null, customIdUpper || null,
         agentId || null, agentSignedDate || null,
-        initialStatus, jurisdiction, 'I'
+        initialStatus, jurisdictionUpper, 'I'
       ];
     } else {
       // Exclude date_signed when not provided
@@ -1528,14 +1562,14 @@ app.post('/api/pafs', ensureAuthenticated, async (req, res) => {
       insertValues = `?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW(), NOW()`;
       insertParams = [
         licenseeIdForPaf, createdByUserId,
-        listOwnerSic || null, companyName, parentCompany || null, alternateCompanyName || null,
-        streetAddress || null, city || null, state || null, zipCode || null, zip4 || null,
-        telephone || null, faxNumber || null, urbanization || null,
-        listOwnerCrid || null, mailerId || null,
-        signerName || null, signerTitle || null, signerEmail || null,
-        listName, frequency || null, notes || null, customId || null,
+        listOwnerSicUpper || null, companyUpper, parentCompanyUpper || null, alternateCompanyNameUpper || null,
+        addressUpper || null, cityUpper || null, stateUpper || null, zipUpper || null, zip4Upper || null,
+        telephoneUpper || null, faxNumberUpper || null, urbanizationUpper || null,
+        listOwnerCridUpper || null, mailerIdUpper || null,
+        signerNameUpper || null, signerTitleUpper || null, signerEmailUpper || null,
+        listNameUpper, frequencyUpper || null, notesUpper || null, customIdUpper || null,
         agentId || null, agentSignedDate || null,
-        initialStatus, jurisdiction, 'I'
+        initialStatus, jurisdictionUpper, 'I'
       ];
     }
 
@@ -1574,7 +1608,7 @@ app.post('/api/pafs', ensureAuthenticated, async (req, res) => {
     if (agentUser) {
       const subject = `Action Required: A new PAF has been assigned to you for approval`;
       const textBody = `Hello ${agentUser.first_name || 'Agent/Broker'},\n\n` +
-                     `A new PAF for the list "${req.body.listName}" (Company: ${req.body.companyName}) has been created and assigned to you.\n\n` +
+                     `A new PAF for the list "${req.body.listName}" (Company: ${req.body.company}) has been created and assigned to you.\n\n` +
                      `Please log in to the PAF System to review and approve it.\n\n` +
                      `Thank you,\nThe PAF System`;
       const htmlBody = `<p>Hello ${agentUser.first_name || 'Agent/Broker'},</p>` +
