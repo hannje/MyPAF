@@ -253,8 +253,8 @@ const handleGeneratePdf = () => {
 
         <h3>List Owner Information</h3>
         <p><strong>Company:</strong> {pafDetails.company || 'N/A'}</p>
-        <p><strong>USPS License ID (Scope):</strong> {pafDetails.licenseeId || 'N/A'}</p>
-        <p><strong>Licensee Company (Scope):</strong> {pafDetails.pafLicenseeCompanyName || 'N/A'}</p>
+        <p><strong>USPS License ID :</strong> {pafDetails.licenseeId || 'N/A'}</p>
+        <p><strong>Licensee Company :</strong> {pafDetails.pafLicenseeCompanyName || 'N/A'}</p>
         <p><strong>Street:</strong> {pafDetails.address || 'N/A'}</p>
         {/* ... Add all other fields from pafDetails ... */}
         <p><strong>Signer:</strong> {pafDetails.signerName} ({pafDetails.signerTitle})</p>
