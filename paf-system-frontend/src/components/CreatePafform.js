@@ -24,7 +24,7 @@ function CreatePafForm({ onSuccess }) {
   const isEditMode = !!initialData.id; // <<< Determine if we are editing
 
 
-  console.log("environment variable", process.env);
+//  console.log("environment variable", process.env);
   console.log("initdata", initialData);
 
 
@@ -63,13 +63,13 @@ function CreatePafForm({ onSuccess }) {
   const [isLoadingNaics, setIsLoadingNaics] = useState(true);
 
   const [listOwnerSic, setListOwnerSic] = useState(initialData.listOwnerSic || '');
-  const [companyName, setCompanyName] = useState(initialData.companyName || '');
+  const [company, setCompanyName] = useState(initialData.company || '');
   const [parentCompany, setParentCompany] = useState(initialData.parentCompany || '');
   const [alternateCompanyName, setAlternateCompanyName] = useState(initialData.alternateCompanyName || '');
-  const [streetAddress, setStreetAddress] = useState(initialData.streetAddress || '');
+  const [address, setStreetAddress] = useState(initialData.address || '');
   const [city, setCity] = useState(initialData.city || '');
   const [state, setStateVal] = useState(initialData.state || '');
-  const [zipCode, setZipCode] = useState(initialData.zipCode || '');
+  const [zip, setZipCode] = useState(initialData.zip || '');
   const [zip4, setZip4] = useState(initialData.zip4 || '');
   const [telephone, setTelephone] = useState(initialData.telephone || '');
   const [faxNumber, setFaxNumber] = useState(initialData.faxNumber || '');
@@ -79,12 +79,12 @@ function CreatePafForm({ onSuccess }) {
 
   const [signerName, setSignerName] = useState(initialData.signerName || '');
   const [signerTitle, setSignerTitle] = useState(initialData.signerTitle || '');
-  const [signerEmail, setSignerEmail] = useState(initialData.signerEmail || '');
+  const [signerEmail, setSignerEmail] = useState(initialData.creatorEmail || '');
 
   const [listName, setListName] = useState(initialData.listName || '');
-  const [frequency, setFrequency] = useState(initialData.frequency || '');
+  const [frequency, setFrequency] = useState(initialData.freqProc || '');
   const [jurisdiction, setJurisdiction] = useState(initialData.jurisdiction || 'US');
-  const [customId, setCustomId] = useState(initialData.customId || '');
+  const [customId, setCustomId] = useState(initialData.CustomID || '');
   const [notes, setNotes] = useState(initialData.notes || '');
 
   const [agentId, setAgentId] = useState('');
@@ -189,13 +189,6 @@ useEffect(() => {
   }, []); // Empty dependency array means this runs once on mount
 
 
-  
-  
-
-  // Agent Details (Agent selection might be a dropdown populated from users with 'AGENT' role)
- // const [agentId, setAgentId] = useState(''); // This would be a users.id
- // const [agentSignedDate, setAgentSignedDate] = useState('');
-
   // UI State
   const [error, setError] = useState('');
   const [message, setMessage] = useState('');
@@ -225,7 +218,7 @@ useEffect(() => {
 
     // Basic Validation (add more as needed)
         // Core fields that are always required
-    if (!companyName || !listName || !signerName || !signerTitle) {
+    if (!company || !listName || !signerName || !signerTitle) {
       setError('Company Name, List Name, Signer Name, and Signer Title are required.');
       setIsLoading(false);
       return;
@@ -238,8 +231,8 @@ useEffect(() => {
       // The backend will use loggedInUser.id for 'created_by_user_id'
       // The backend needs to determine 'licensee_id' (likely from loggedInUser's scope/admin)
 
-      listOwnerSic, companyName, parentCompany, alternateCompanyName,
-      streetAddress, city, state, zipCode, zip4, telephone, faxNumber, urbanization,
+      listOwnerSic, company, parentCompany, alternateCompanyName,
+      address, city, state, zip, zip4, telephone, faxNumber, urbanization,
       listOwnerCrid, mailerId,
       signerName, signerTitle, signerEmail,
       // dateSigned and agentSignedDate will be set during approval process
@@ -290,7 +283,7 @@ useEffect(() => {
       <form onSubmit={handleSubmit} className="form">
         <fieldset>
           <legend>List Owner Company Information</legend>
-          <div className="form-group"><label>Company Name (List Owner):</label><input type="text" value={companyName} onChange={(e) => setCompanyName(e.target.value)} required /></div>
+          <div className="form-group"><label>Company Name (List Owner):</label><input type="text" value={company} onChange={(e) => setCompanyName(e.target.value)} required /></div>
  
  
            <div className="form-group">
@@ -316,10 +309,10 @@ useEffect(() => {
  
           <div className="form-group"><label>Parent Company (if any):</label><input type="text" value={parentCompany} onChange={(e) => setParentCompany(e.target.value)} /></div>
           <div className="form-group"><label>Alternate Company Name (DBA):</label><input type="text" value={alternateCompanyName} onChange={(e) => setAlternateCompanyName(e.target.value)} /></div>
-          <div className="form-group"><label>Street Address:</label><input type="text" value={streetAddress} onChange={(e) => setStreetAddress(e.target.value)} /></div>
+          <div className="form-group"><label>Street Address:</label><input type="text" value={address} onChange={(e) => setStreetAddress(e.target.value)} /></div>
           <div className="form-group"><label>City:</label><input type="text" value={city} onChange={(e) => setCity(e.target.value)} /></div>
           <div className="form-group"><label>State:</label><input type="text" value={state} onChange={(e) => setStateVal(e.target.value)} /></div>
-          <div className="form-group"><label>Zip Code:</label><input type="text" value={zipCode} onChange={(e) => setZipCode(e.target.value)} /></div>
+          <div className="form-group"><label>Zip Code:</label><input type="text" value={zip} onChange={(e) => setZipCode(e.target.value)} /></div>
           <div className="form-group"><label>Zip+4:</label><input type="text" value={zip4} onChange={(e) => setZip4(e.target.value)} maxLength="4" /></div>
           <div className="form-group"><label>Telephone:</label><input type="tel" value={telephone} onChange={(e) => setTelephone(e.target.value)} /></div>
           <div className="form-group"><label>Fax Number:</label><input type="tel" value={faxNumber} onChange={(e) => setFaxNumber(e.target.value)} /></div>
