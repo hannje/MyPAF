@@ -192,7 +192,7 @@ class BrokerMigrationApp:
         try:
             cursor = self.ncoams_conn.cursor(dictionary=True)
             query = """
-                SELECT broker_id, company_name, licensee_id, city, state
+                SELECT broker_id, company_name, licensee_id, city, state, zip, zip4, telephone
                 FROM paf_broker_info
                 ORDER BY company_name
             """
@@ -211,8 +211,12 @@ class BrokerMigrationApp:
                 licensee_id = broker.get('licensee_id', '').strip() if broker.get('licensee_id') else 'N/A'
                 city = broker.get('city', '').strip() if broker.get('city') else ''
                 state = broker.get('state', '').strip() if broker.get('state') else ''
+                zip_code = broker.get('zip', '').strip() if broker.get('zip') else ''
+                zip4 = broker.get('zip4', '').strip() if broker.get('zip4') else ''
+                merged_zip = f"{zip_code}-{zip4}" if zip_code and zip4 else (zip_code or zip4)
+                telephone = broker.get('telephone', '').strip() if broker.get('telephone') else ''
 
-                display_text = f"{broker_id:8} | {company:40} | {licensee_id:6} | {city:20} | {state}"
+                display_text = f"{broker_id:8} | {company:40} | {licensee_id:6} | {city:20} | {state:2} | {merged_zip:10} | {telephone:14}"
                 self.broker_listbox.insert(tk.END, display_text)
                 self.broker_data.append(broker)
 
